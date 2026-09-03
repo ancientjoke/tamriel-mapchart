@@ -34,17 +34,75 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import geo_data as G  # noqa: E402
 
-NOISE_LEVELS = 4          # 2**4 = 16 segments per Voronoi edge
-NOISE_AMP = 0.078         # first displacement, as a fraction of edge length
-NOISE_DECAY = 0.52
-NOISE_MAX = 5.5           # px: cap, so the very long outer edges stay tame
-COAST_SIMPLIFY = 0.0
+NOISE_LEVELS = 3          # 2**3 = 8 segments per Voronoi edge, then smoothed
+NOISE_AMP = 0.10          # first displacement, as a fraction of edge length
+NOISE_DECAY = 0.55
+NOISE_MAX = 6.0           # px: cap, so the very long outer edges stay tame
+EDGE_SMOOTH = 2           # Chaikin passes over each perturbed border
+COAST_SAMPLES = 3         # centripetal Catmull-Rom samples per coast segment
 SEA_LINK_DIST = 34.0      # px: islands closer than this count as neighbours
 
 
 # --------------------------------------------------------------------------- #
 # helpers
 # --------------------------------------------------------------------------- #
+def catmull_ring(pts, closed=True, samples=COAST_SAMPLES, alpha=0.5):
+    """
+    Centripetal Catmull-Rom resampling.  The curve passes through every
+    authored point but arrives smoothly, which is what turns a hand-typed
+    coastline into something that reads as drawn rather than plotted.
+    Centripetal parameterisation (alpha=0.5) cannot overshoot into a cusp,
+    so narrow inlets and cape tips survive intact.
+    """
+    P = [np.asarray(q, float) for q in pts]
+    if len(P) > 1 and np.allclose(P[0], P[-1]):
+        P = P[:-1]
+    n = len(P)
+    if n < 4:
+        return [tuple(q) for q in P]
+    out = []
+    rng = range(n) if closed else range(n - 1)
+    for i in rng:
+        p0 = P[(i - 1) % n] if closed else P[max(0, i - 1)]
+        p1 = P[i % n]
+        p2 = P[(i + 1) % n] if closed else P[min(n - 1, i + 1)]
+        p3 = P[(i + 2) % n] if closed else P[min(n - 1, i + 2)]
+        d1 = max(np.linalg.norm(p1 - p0), 1e-6) ** alpha
+        d2 = max(np.linalg.norm(p2 - p1), 1e-6) ** alpha
+        d3 = max(np.linalg.norm(p3 - p2), 1e-6) ** alpha
+        # tangents for the centripetal form
+        m1 = (p2 - p1 + d2 * ((p1 - p0) / d1 - (p2 - p0) / (d1 + d2)))
+        m2 = (p2 - p1 + d2 * ((p3 - p2) / d3 - (p3 - p1) / (d2 + d3)))
+        for k in range(samples):
+            t = k / float(samples)
+            t2, t3 = t * t, t * t * t
+            pt = ((2 * t3 - 3 * t2 + 1) * p1 + (t3 - 2 * t2 + t) * m1 +
+                  (-2 * t3 + 3 * t2) * p2 + (t3 - t2) * m2)
+            out.append((float(pt[0]), float(pt[1])))
+    if not closed:
+        out.append((float(P[-1][0]), float(P[-1][1])))
+    return out
+
+
+def chaikin(pts, iters=EDGE_SMOOTH, keep_ends=True):
+    """Corner-cutting smoothing.  Symmetric, so an edge walked from either
+    end yields the identical polyline -- which is what keeps two regions'
+    shared border watertight after smoothing."""
+    P = [tuple(map(float, q)) for q in pts]
+    for _ in range(max(0, iters)):
+        if len(P) < 3:
+            break
+        out = [P[0]] if keep_ends else []
+        for i in range(len(P) - 1):
+            a, b = P[i], P[i + 1]
+            out.append((0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1]))
+            out.append((0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1]))
+        if keep_ends:
+            out.append(P[-1])
+        P = out
+    return P
+
+
 def clean(poly):
     p = make_valid(Polygon(poly)) if not isinstance(poly, (Polygon, MultiPolygon)) else make_valid(poly)
     if isinstance(p, MultiPolygon):
@@ -184,9 +242,12 @@ def smooth_path(points, closed=False, tension=0.5):
 # --------------------------------------------------------------------------- #
 # 1. landmasses
 # --------------------------------------------------------------------------- #
-landmasses = {"mainland": clean(G.MAINLAND)}
+landmasses = {"mainland": clean(catmull_ring(G.MAINLAND))}
 for name, ring in G.ISLANDS.items():
-    landmasses[name] = clean(ring)
+    landmasses[name] = clean(catmull_ring(ring))
+print("coastlines   : %d authored points -> %d smoothed" % (
+    len(G.MAINLAND) + sum(len(r) for r in G.ISLANDS.values()),
+    sum(len(p.exterior.coords) for p in landmasses.values())))
 
 scenery = {k: v for k, v in landmasses.items() if k in G.SCENERY_ISLANDS}
 for k in scenery:
@@ -258,7 +319,8 @@ for lname, poly in landmasses.items():
         if key not in edge_cache:
             p0 = vor.vertices[key[0]]
             p1 = vor.vertices[key[1]]
-            edge_cache[key] = fractal_edge(p0, p1, "%s|%d|%d" % (lname, key[0], key[1]))
+            edge_cache[key] = chaikin(
+                fractal_edge(p0, p1, "%s|%d|%d" % (lname, key[0], key[1])))
         line = edge_cache[key]
         return line if (a, b) == key else line[::-1]
 

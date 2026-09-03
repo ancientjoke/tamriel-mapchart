@@ -10,6 +10,11 @@ Open `index.html` in a browser, or use the self-contained single file
 
 ![The Three Banners War](docs/preview-banners.png)
 
+Uncoloured, in the reference map's own styling — city dots and city names, so you
+can see the subdivision against the original:
+
+![Blank map with city names](docs/preview-plain.png)
+
 ## What's in it
 
 **The map.** Every province is broken into its lore regions — Skyrim's nine holds,
@@ -75,18 +80,25 @@ cells either — raw Voronoi gives dead-straight borders that look computed.
    tagged with its province and city.
 2. `tools/build_map.py` tessellates the seeds with a Voronoi diagram computed
    **per landmass**, so an island is never claimed by a mainland region.
-3. Every interior Voronoi edge is then replaced by a fractal
-   (midpoint-displacement) polyline. The displacement is keyed on the edge's
-   vertex pair, so the two regions sharing a border generate the *identical*
-   wiggly line — the tiling stays watertight, with no slivers or gaps — while the
-   Voronoi vertices stay put so triple junctions remain exact. Displacement is
-   clamped in both proportion and absolute size.
-4. Cells are clipped against the coastline, which supplies the natural land/sea
-   edge, and a final pass hands each cell only the area no earlier cell claimed,
-   so overlap is exactly zero (the build reports coverage — it should read 100.00%).
-5. Small unseeded islets are attached to the region nearest them, so they colour in
+3. The authored coastlines are resampled through a **centripetal**
+   Catmull-Rom spline. The curve passes through every typed point but arrives
+   smoothly, which is what turns a hand-typed outline into a coast that reads as
+   drawn; centripetal parameterisation (alpha = 0.5) cannot overshoot into a cusp,
+   so narrow inlets and cape tips survive. 457 authored points become 1391.
+4. Every interior Voronoi edge is then replaced by a fractal
+   (midpoint-displacement) polyline, which is finally smoothed by two Chaikin
+   passes. Both operations are keyed on — or symmetric in — the edge's vertex
+   pair, so the two regions sharing a border generate the *identical* line: the
+   tiling stays watertight, with no slivers or gaps, while the Voronoi vertices
+   stay put so triple junctions remain exact. Displacement is clamped in both
+   proportion and absolute size, so the very long outer cell edges stay tame.
+5. Cells are clipped against that smooth coastline, which supplies the natural
+   land/sea edge, and a final pass hands each cell only the area no earlier cell
+   claimed, so overlap is exactly zero (the build reports coverage — it should
+   read 100.00%).
+6. Small unseeded islets are attached to the region nearest them, so they colour in
    with it instead of sitting on the map as grey holes.
-6. Adjacency comes out of the Voronoi ridges, plus short sea crossings and a table
+7. Adjacency comes out of the Voronoi ridges, plus short sea crossings and a table
    of historically-connected crossings, and ships with the map for the simulator.
 
 To change the map, edit `tools/geo_data.py` and rebuild:
