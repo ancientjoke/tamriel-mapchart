@@ -1,0 +1,278 @@
+/* ==========================================================================
+   exporter.js -- standalone SVG, PNG raster, animated-frame PNGs, JSON I/O
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var TM = W.TM, S = TM.S;
+
+  function download(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 400);
+  }
+  function slug(s) {
+    return String(s || 'tamriel').toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'tamriel';
+  }
+
+  /* --------------------------------------------------- self-contained SVG */
+  /**
+   * Renders the map to an SVG string that carries no CSS dependencies.
+   * `opts.colors` overrides the painting (used for timeline frames),
+   * `opts.box` overrides the viewBox, `opts.legend`/`opts.caption` add chrome.
+   */
+  function buildSVG(opts) {
+    opts = opts || {};
+    var M = S.map, st = S.doc.style, t = TM.THEMES[st.theme] || TM.THEMES.mapchart;
+    var colors = opts.colors || S.doc.colors;
+    var groups = opts.groups || S.doc.groups;
+    var box = opts.box || TM.view.getFit();
+    var scale = opts.scale || 1;
+    var w = Math.round(box.w * scale), h = Math.round(box.h * scale);
+    var esc = TM.view.esc;
+    var o = [];
+
+    o.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h +
+           '" viewBox="' + box.x + ' ' + box.y + ' ' + box.w + ' ' + box.h + '">');
+    o.push('<rect x="' + box.x + '" y="' + box.y + '" width="' + box.w + '" height="' +
+           box.h + '" fill="' + t.sea + '"/>');
+    o.push('<g fill="' + t.land + '">' +
+           M.land.concat(M.scenery).map(function (d) { return '<path d="' + d + '"/>'; }).join('') +
+           '</g>');
+    o.push('<g stroke="' + (st.showBorders ? t.border : 'none') + '" stroke-width="' +
+           st.borderWidth + '" stroke-linejoin="round">');
+    M.regions.forEach(function (r) {
+      o.push('<path d="' + r.d + '" fill="' + (colors[r.id] || t.unpainted) + '"/>');
+    });
+    o.push('</g>');
+    if (st.showProvBorders) {
+      o.push('<g fill="none" stroke="' + t.provBorder + '" stroke-width="' +
+             st.provBorderWidth + '" stroke-linejoin="round">' +
+             M.provinces.map(function (p) { return '<path d="' + p.d + '"/>'; }).join('') + '</g>');
+    }
+    if (st.showLakes) {
+      o.push('<g fill="' + t.water + '" stroke="' + t.water + '" stroke-width="0.4">' +
+             M.lakes.map(function (d) { return '<path d="' + d + '"/>'; }).join('') + '</g>');
+    }
+    if (st.showRivers) {
+      o.push('<g fill="none" stroke="' + t.river + '" stroke-width="1.5" stroke-linecap="round">' +
+             M.rivers.map(function (d) { return '<path d="' + d + '"/>'; }).join('') + '</g>');
+    }
+    if (st.showCoast) {
+      o.push('<g fill="none" stroke="' + t.coast + '" stroke-width="' +
+             Math.max(0.8, st.provBorderWidth * 0.75) + '" stroke-linejoin="round">' +
+             M.land.concat(M.scenery).map(function (d) { return '<path d="' + d + '"/>'; }).join('') +
+             '</g>');
+    }
+    if (st.showCities) {
+      o.push('<g fill="' + t.cityFill + '" stroke="' + t.city + '" stroke-width="0.5">');
+      M.regions.forEach(function (r) {
+        if (r.city) o.push('<circle cx="' + r.cityAt[0] + '" cy="' + (r.cityAt[1] + 3.2) + '" r="1.5"/>');
+      });
+      o.push('</g>');
+    }
+    if (st.labelMode !== 'none') {
+      var fs = st.labelSize;
+      o.push('<g text-anchor="middle" font-family="Segoe UI,Inter,system-ui,sans-serif" ' +
+             'font-size="' + fs + '" fill="' + t.label + '" stroke="' + t.labelHalo +
+             '" stroke-width="' + (fs * 0.24) + '" paint-order="stroke">');
+      M.regions.forEach(function (r) {
+        var txt = st.labelSource === 'city' ? (r.city || r.name) : r.name;
+        if (st.labelMode !== 'all') {
+          if (txt.length * fs * 0.46 > Math.sqrt(r.area) * 1.28) return;
+        }
+        o.push('<text x="' + r.label[0] + '" y="' + r.label[1] + '">' + esc(txt) + '</text>');
+      });
+      o.push('</g>');
+    }
+
+    /* --- chrome: title, caption, legend --- */
+    var pad = box.w * 0.014;
+    var titleSize = box.w * 0.024;
+    if (st.title || opts.caption) {
+      // measure the block first so it can sit on its own panel instead of
+      // colliding with the region labels underneath
+      var lines = [];
+      if (st.title) lines.push({ t: st.title, s: titleSize, w: 600, o: 1 });
+      if (st.subtitle) lines.push({ t: st.subtitle, s: titleSize * 0.5, w: 400, o: 0.9 });
+      if (opts.caption) lines.push({ t: opts.caption, s: titleSize * 0.5, w: 600, o: 1 });
+      if (opts.caption2) lines.push({ t: opts.caption2, s: titleSize * 0.36, w: 400, o: 0.85 });
+      var bw = 0, bh = pad * 0.5;
+      lines.forEach(function (L) {
+        bw = Math.max(bw, L.t.length * L.s * 0.47);
+        bh += L.s * 1.32;
+      });
+      bw = Math.min(bw + pad * 1.2, box.w * 0.62);
+      bh += pad * 0.35;
+      var bx = box.x + pad * 0.6, by = box.y + pad * 0.6;
+      o.push('<rect x="' + bx + '" y="' + by + '" width="' + bw + '" height="' + bh +
+             '" rx="' + (titleSize * 0.16) + '" fill="' +
+             (t.dark ? 'rgba(12,10,8,.72)' : 'rgba(255,255,255,.78)') + '"/>');
+      o.push('<g font-family="Palatino Linotype,Palatino,Georgia,serif" fill="' + t.label + '">');
+      var ty = by + pad * 0.5;
+      lines.forEach(function (L) {
+        ty += L.s * 0.98;
+        o.push('<text x="' + (bx + pad * 0.6) + '" y="' + ty + '" font-size="' + L.s +
+               '" font-weight="' + L.w + '" opacity="' + L.o + '">' + esc(L.t) + '</text>');
+        ty += L.s * 0.34;
+      });
+      o.push('</g>');
+    }
+    if (st.showLegend && groups && groups.length) {
+      var lh = box.w * 0.0115, lw = box.w * 0.13;
+      var maxLbl = groups.reduce(function (m, g) { return Math.max(m, (g.label || '').length); }, 6);
+      lw = Math.max(lw, maxLbl * lh * 0.5 + lh * 2.8);
+      var lhh = groups.length * lh + lh * 2.6;
+      var at = st.legendAt || [0.985, 0.02];
+      var ax = at[0] > 0.5 ? 1 : 0, ay = at[1] > 0.5 ? 1 : 0;
+      var lx = box.x + at[0] * box.w - ax * lw;
+      var ly = box.y + at[1] * box.h - ay * lhh;
+      lx = Math.max(box.x + pad * 0.4, Math.min(box.x + box.w - lw - pad * 0.4, lx));
+      ly = Math.max(box.y + pad * 0.4, Math.min(box.y + box.h - lhh - pad * 0.4, ly));
+      o.push('<g>');
+      o.push('<rect x="' + lx + '" y="' + ly + '" width="' + lw + '" height="' +
+             lhh + '" rx="' + (lh * 0.28) + '" fill="' +
+             (t.dark ? 'rgba(12,10,8,.9)' : 'rgba(255,255,255,.95)') + '" stroke="' +
+             t.provBorder + '" stroke-width="' + (lh * 0.05) + '"/>');
+      o.push('<text x="' + (lx + lh * 0.6) + '" y="' + (ly + lh * 1.05) + '" font-size="' +
+             (lh * 0.6) + '" font-family="Segoe UI,system-ui,sans-serif" letter-spacing="' +
+             (lh * 0.06) + '" fill="' + t.label + '" opacity="0.75">' +
+             esc((st.legendTitle || 'Legend').toUpperCase()) + '</text>');
+      groups.forEach(function (g, i) {
+        var y = ly + lh * 2.15 + i * lh;
+        o.push('<rect x="' + (lx + lh * 0.6) + '" y="' + (y - lh * 0.62) + '" width="' +
+               (lh * 0.74) + '" height="' + (lh * 0.74) + '" rx="' + (lh * 0.1) +
+               '" fill="' + g.color + '" stroke="rgba(0,0,0,.55)" stroke-width="' +
+               (lh * 0.045) + '"/>');
+        o.push('<text x="' + (lx + lh * 1.72) + '" y="' + (y + lh * 0.02) + '" font-size="' +
+               (lh * 0.66) + '" font-family="Segoe UI,system-ui,sans-serif" fill="' + t.label +
+               '">' + esc(g.label || '') + '</text>');
+      });
+      o.push('</g>');
+    }
+    o.push('</svg>');
+    return { svg: o.join(''), w: w, h: h };
+  }
+
+  function exportSVG() {
+    var r = buildSVG({ box: currentBox(), scale: 1 });
+    download(new Blob([r.svg], { type: 'image/svg+xml' }), slug(S.doc.name) + '.svg');
+  }
+
+  function currentBox() {
+    return S.doc.style.exportView === 'screen' ? TM.view.getView() : TM.view.getFit();
+  }
+
+  /* ------------------------------------------------------------------ PNG */
+  function rasterise(svgText, w, h) {
+    return new Promise(function (res, rej) {
+      var img = new Image();
+      var blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      img.onload = function () {
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        var g = c.getContext('2d');
+        g.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        res(c);
+      };
+      img.onerror = function (e) { URL.revokeObjectURL(url); rej(e); };
+      img.src = url;
+    });
+  }
+
+  function exportPNG(scale) {
+    scale = scale || S.doc.style.exportScale || 2;
+    var kf = TM.timeline.frames().length ? TM.timeline.frameAt(S.playhead) : null;
+    var opts = { box: currentBox(), scale: scale };
+    if (S.playing || (kf && S.doc.style.captionFromTimeline)) {
+      opts.colors = TM.timeline.colorsAt(S.playhead);
+      opts.groups = kf.groups && kf.groups.length ? kf.groups : S.doc.groups;
+      opts.caption = kf.date + (kf.title ? ' — ' + kf.title : '');
+      opts.caption2 = kf.note || '';
+    }
+    var r = buildSVG(opts);
+    return rasterise(r.svg, r.w, r.h).then(function (canvas) {
+      return new Promise(function (res) {
+        canvas.toBlob(function (b) {
+          download(b, slug(S.doc.name) + '.png');
+          res(true);
+        }, 'image/png');
+      });
+    });
+  }
+
+  /** Export every keyframe as its own PNG (an animation strip you can stitch). */
+  function exportFrames(scale) {
+    scale = scale || 1.5;
+    var f = TM.timeline.frames();
+    if (!f.length) return Promise.resolve(0);
+    var box = currentBox(), i = 0;
+    function next() {
+      if (i >= f.length) return Promise.resolve(f.length);
+      var kf = f[i];
+      var r = buildSVG({
+        box: box, scale: scale, colors: kf.colors,
+        groups: kf.groups && kf.groups.length ? kf.groups : S.doc.groups,
+        caption: kf.date + (kf.title ? ' — ' + kf.title : ''), caption2: kf.note || ''
+      });
+      var n = i;
+      return rasterise(r.svg, r.w, r.h).then(function (canvas) {
+        return new Promise(function (res) {
+          canvas.toBlob(function (b) {
+            download(b, slug(S.doc.name) + '-' + String(n + 1).padStart(2, '0') + '.png');
+            setTimeout(res, 260);
+          }, 'image/png');
+        });
+      }).then(function () { i++; return next(); });
+    }
+    return next();
+  }
+
+  /* ----------------------------------------------------------------- JSON */
+  function exportJSON() {
+    var out = JSON.parse(JSON.stringify(S.doc));
+    out.generator = 'Tamriel MapChart';
+    out.exportedAt = new Date().toISOString();
+    download(new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }),
+             slug(S.doc.name) + '.tamriel.json');
+  }
+  function importJSON(file) {
+    return new Promise(function (res, rej) {
+      var fr = new FileReader();
+      fr.onload = function () {
+        try {
+          TM.state.setDoc(JSON.parse(fr.result));
+          res(true);
+        } catch (e) { rej(e); }
+      };
+      fr.onerror = rej;
+      fr.readAsText(file);
+    });
+  }
+
+  /* --------------------------------------------------- CSV of the painting */
+  function exportCSV() {
+    var rows = [['region', 'province', 'city', 'color', 'group']];
+    S.map.regions.forEach(function (r) {
+      var c = S.doc.colors[r.id] || '';
+      var g = c ? (TM.state.groupFor(c) || {}).label || '' : '';
+      rows.push([r.name, r.province, r.city || '', c, g]);
+    });
+    var csv = rows.map(function (r) {
+      return r.map(function (v) {
+        return /[",\n]/.test(v) ? '"' + String(v).replace(/"/g, '""') + '"' : v;
+      }).join(',');
+    }).join('\n');
+    download(new Blob([csv], { type: 'text/csv' }), slug(S.doc.name) + '.csv');
+  }
+
+  TM.exporter = {
+    buildSVG: buildSVG, exportSVG: exportSVG, exportPNG: exportPNG,
+    exportFrames: exportFrames, exportJSON: exportJSON, importJSON: importJSON,
+    exportCSV: exportCSV, download: download
+  };
+})(window);
