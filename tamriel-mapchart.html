@@ -221,7 +221,7 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px;flex:0 0 auto}
 #stage{grid-row:2;grid-column:2;position:relative;overflow:hidden;background:#0f0d0a;min-height:0}
 #svgwrap{position:absolute;inset:0}
 #stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:9;
-  box-shadow:inset 0 0 120px 10px rgba(0,0,0,.42)}
+  box-shadow:inset 0 0 90px 0 rgba(0,0,0,.18)}
 #map{width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
 #map.panning{cursor:grabbing}
 #map.picking{cursor:copy}
@@ -237,13 +237,17 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px;flex:0 0 auto}
 #zoomctl{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:5px;z-index:11}
 #zoomctl .btn{width:33px;height:31px;padding:0;background:rgba(20,17,12,.88);
   backdrop-filter:blur(6px);box-shadow:var(--shadow-sm)}
-#titlecard{position:absolute;left:18px;top:16px;z-index:11;pointer-events:none;
-  font-family:var(--serif);text-shadow:0 2px 12px rgba(0,0,0,.75)}
-#titlecard .t{font-size:23px;font-weight:600;letter-spacing:.03em;line-height:1.15}
-#titlecard .s{font:12px var(--sans);letter-spacing:.16em;text-transform:uppercase;
-  color:var(--gold);margin-top:3px;opacity:.9}
-#titlecard.light .t,#titlecard.light .s{color:#1a1712;text-shadow:0 1px 8px rgba(255,255,255,.75)}
-#titlecard.light .s{color:#6b5320}
+#titlecard{position:absolute;left:16px;top:16px;z-index:11;pointer-events:none;
+  font-family:var(--serif);background:rgba(13,11,8,.86);border:1px solid var(--line);
+  border-radius:8px;padding:9px 15px 10px;box-shadow:var(--shadow);backdrop-filter:blur(8px);
+  max-width:min(46%,430px)}
+#titlecard:empty,#titlecard.bare{display:none}
+#titlecard .t{font-size:23px;font-weight:600;letter-spacing:.03em;line-height:1.15;
+  color:var(--ink)}
+#titlecard .t:empty{display:none}
+#titlecard .s{font:11px var(--sans);letter-spacing:.2em;text-transform:uppercase;
+  color:var(--gold-2);margin-top:4px}
+#titlecard .s:empty{display:none}
 #maplegend{position:absolute;left:16px;top:16px;z-index:11;pointer-events:auto;touch-action:none;
   background:rgba(13,11,8,.86);border:1px solid var(--line);border-radius:8px;
   padding:9px 12px;box-shadow:var(--shadow);max-width:330px;backdrop-filter:blur(8px)}
@@ -1388,6 +1392,13 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     var t = ev.target;
     return (t && t.__id) ? t.__id : null;
   }
+  /** Hit-test by position. A pointer capture retargets every move to the
+      <svg>, so a paint drag cannot read the region off ev.target. */
+  function regionAtPoint(x, y) {
+    var els = D.elementsFromPoint(x, y);
+    for (var i = 0; i < els.length; i++) if (els[i].__id) return els[i].__id;
+    return null;
+  }
   function cityAt(ev) {
     var t = ev.target;
     return (t && t.__city) ? t.__city : null;
@@ -1475,12 +1486,12 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
         pushView();
         return;
       }
-      var id = regionAt(e);
       if (painting) {
-        if (id && id !== lastPainted) { lastPainted = id; applyPaint(id, e, false); }
+        var pid = regionAtPoint(e.clientX, e.clientY);
+        if (pid && pid !== lastPainted) { lastPainted = pid; applyPaint(pid, e, false); }
         return;
       }
-      hoverRegion(id, e);
+      hoverRegion(regionAt(e), e);
     });
 
     function endDrag() {
@@ -2164,8 +2175,7 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     var st = S.doc.style, card = $('titlecard');
     $('tc-t').textContent = st.title || '';
     $('tc-s').textContent = st.subtitle || '';
-    card.style.display = (st.title || st.subtitle) ? '' : 'none';
-    card.classList.toggle('light', !(TM.THEMES[st.theme] || {}).dark);
+    card.classList.toggle('bare', !(st.title || st.subtitle));
   }
 
   /* ---------- inspector ---------- */

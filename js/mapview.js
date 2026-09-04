@@ -434,6 +434,13 @@
     var t = ev.target;
     return (t && t.__id) ? t.__id : null;
   }
+  /** Hit-test by position. A pointer capture retargets every move to the
+      <svg>, so a paint drag cannot read the region off ev.target. */
+  function regionAtPoint(x, y) {
+    var els = D.elementsFromPoint(x, y);
+    for (var i = 0; i < els.length; i++) if (els[i].__id) return els[i].__id;
+    return null;
+  }
   function cityAt(ev) {
     var t = ev.target;
     return (t && t.__city) ? t.__city : null;
@@ -521,12 +528,12 @@
         pushView();
         return;
       }
-      var id = regionAt(e);
       if (painting) {
-        if (id && id !== lastPainted) { lastPainted = id; applyPaint(id, e, false); }
+        var pid = regionAtPoint(e.clientX, e.clientY);
+        if (pid && pid !== lastPainted) { lastPainted = pid; applyPaint(pid, e, false); }
         return;
       }
-      hoverRegion(id, e);
+      hoverRegion(regionAt(e), e);
     });
 
     function endDrag() {
