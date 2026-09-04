@@ -3,13 +3,17 @@
    ========================================================================== */
 (function (W) {
   'use strict';
-  var TM = W.TM, S = TM.S, NS = 'http://www.w3.org/2000/svg';
+  var TM = W.TM, S = TM.S, D = document, NS = 'http://www.w3.org/2000/svg';
 
-  var svg, gSea, gLand, gScenery, gRegions, gSub, gBase, gProv, gWater, gCoast, gCity, gLabel;
+  var svg, defs, gSea, gLand, gScenery, gRegions, gOcc, gSub, gBase, gProv,
+      gWater, gCoast, gCityD, gCity, gLabel;
   var stage, tip;
   var view = { x: 0, y: 0, w: 1000, h: 700 };
   var fit = { x: 0, y: 0, w: 1000, h: 700 };
-  var paths = {};      // regionId -> <path>
+  var paths = {};      // parcelId -> <path>
+  var occPaths = {};   // parcelId -> striped overlay <path>
+  var cityPaths = {};  // cityId -> district <path>
+  var stripeIds = {};  // hex -> pattern id
   var labels = {};     // regionId -> <text>
   var cityDots = {};
   var provPaths = {};
@@ -52,10 +56,14 @@
     });
 
     svg = el('svg', { id: 'map', xmlns: NS, 'shape-rendering': 'geometricPrecision' });
+    defs = el('defs');
+    svg.appendChild(defs);
     gSea = el('g', { id: 'g-sea' });
     gLand = el('g', { id: 'g-land' });
     gScenery = el('g', { id: 'g-scenery' });
     gRegions = el('g', { id: 'g-regions' });
+    gOcc = el('g', { id: 'g-occ', stroke: 'none' });
+    gCityD = el('g', { id: 'g-cityd', 'stroke-linejoin': 'round' });
     gSub = el('g', { id: 'g-sub', fill: 'none', 'stroke-linejoin': 'round' });
     gBase = el('g', { id: 'g-base', fill: 'none', 'stroke-linejoin': 'round' });
     gProv = el('g', { id: 'g-prov', fill: 'none', 'stroke-linejoin': 'round' });
@@ -64,7 +72,8 @@
     gCity = el('g', { id: 'g-city' });
     gLabel = el('g', { id: 'g-label', 'text-anchor': 'middle',
       'font-family': '"Segoe UI",Inter,system-ui,sans-serif', 'paint-order': 'stroke' });
-    [gSea, gLand, gScenery, gRegions, gSub, gBase, gProv, gWater, gCoast, gCity, gLabel]
+    [gSea, gLand, gScenery, gRegions, gOcc, gCityD, gSub, gBase, gProv,
+     gWater, gCoast, gCity, gLabel]
       .forEach(function (g) { svg.appendChild(g); });
 
     gSea.appendChild(el('rect', { id: 'searect' }));
@@ -76,6 +85,16 @@
       p.__id = r.id;
       paths[r.id] = p;
       gRegions.appendChild(p);
+      var o = el('path', { d: r.d, 'class': 'occ' });
+      o.style.display = 'none';
+      occPaths[r.id] = o;
+      gOcc.appendChild(o);
+    });
+    (mapData.cityDistricts || []).forEach(function (c) {
+      var p = el('path', { d: c.d, 'class': 'citydistrict' });
+      p.__city = c.id;
+      cityPaths[c.id] = p;
+      gCityD.appendChild(p);
     });
     (mapData.subRegions || []).forEach(function (b) {
       gSub.appendChild(el('path', { d: b.d }));
@@ -143,6 +162,8 @@
     Array.prototype.forEach.call(gWater.querySelectorAll('.river'), function (e) {
       e.setAttribute('stroke-width', 1.5 * ss);
     });
+    sizeStripes();
+    paintCityDistricts();
   }
 
   function applyTheme() {
@@ -279,6 +300,36 @@
     }
   }
 
+  /** A diagonal hatch in the occupier's colour with transparent gaps, so the
+      owner's colour still reads underneath. */
+  function stripeFor(hex) {
+    if (stripeIds[hex]) return stripeIds[hex];
+    var id = 'stripe-' + hex.slice(1);
+    var pat = el('pattern', {
+      id: id, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)'
+    });
+    pat.appendChild(el('rect', { fill: hex }));
+    defs.appendChild(pat);
+    stripeIds[hex] = id;
+    sizeStripes();
+    return id;
+  }
+  /** Pattern geometry is in map units, so the hatch has to be re-sized on
+      zoom or it turns into giant bands. */
+  function sizeStripes() {
+    var w = (S.doc.style.stripeWidth || 2.4) * strokeScale();
+    for (var hex in stripeIds) {
+      var pat = defs.querySelector('#' + stripeIds[hex]);
+      if (!pat) continue;
+      pat.setAttribute('width', w * 2);
+      pat.setAttribute('height', w * 2);
+      var r = pat.firstChild;
+      r.setAttribute('width', w);
+      r.setAttribute('height', w * 2);
+    }
+  }
+  function restripe() { sizeStripes(); }
+
   /* ---------------------------------------------------------------- repaint */
   function repaint() {
     // while the timeline is being scrubbed the screen shows interpolated
@@ -293,11 +344,40 @@
         paths[id].classList.toggle('sel', on);
         paths[id].__s = on;
       }
+      var occ = S.doc.occupied[id] || null;
+      var op = occPaths[id];
+      if (op && op.__o !== occ) {
+        if (occ) {
+          op.setAttribute('fill', 'url(#' + stripeFor(occ) + ')');
+          op.style.display = '';
+        } else {
+          op.style.display = 'none';
+        }
+        op.__o = occ;
+      }
+    }
+    paintCityDistricts();
+  }
+
+  function paintCityDistricts() {
+    var st = S.doc.style, t = theme();
+    gCityD.style.display = st.showCityDistricts ? '' : 'none';
+    if (!st.showCityDistricts) return;
+    var ss = strokeScale();
+    for (var cid in cityPaths) {
+      var c = S.doc.cityColors[cid];
+      var p = cityPaths[cid];
+      p.setAttribute('fill', c || 'none');
+      p.setAttribute('fill-opacity', c ? 0.92 : 0);
+      p.setAttribute('stroke', t.provBorder);
+      p.setAttribute('stroke-width', 0.75 * ss);
+      p.setAttribute('stroke-dasharray', c ? 'none' : (1.6 * ss) + ' ' + (1.2 * ss));
     }
   }
   /** Paint straight from a colour map (used by timeline playback). */
   function paintFrom(colorMap) {
     var t = theme();
+    for (var oid in occPaths) { occPaths[oid].style.display = 'none'; occPaths[oid].__o = null; }
     for (var id in paths) {
       var f = colorMap[id] || t.unpainted;
       if (paths[id].__f !== f) { paths[id].setAttribute('fill', f); paths[id].__f = f; }
@@ -305,9 +385,17 @@
   }
 
   /* ------------------------------------------------------------------- view */
+  /** Stage aspect ratio, guarded: a hidden or mid-transition stage can report
+      zero height, and dividing by it puts Infinity in the viewBox. */
+  function aspect() {
+    var w = stage.clientWidth, h = stage.clientHeight;
+    if (!(w > 0) || !(h > 0)) return view.h / view.w || 0.66;
+    return h / w;
+  }
+
   function pushView() {
     view.w = Math.min(MAX_W, Math.max(MIN_W, view.w));
-    var ar = stage.clientHeight / Math.max(1, stage.clientWidth);
+    var ar = aspect();
     view.h = view.w * ar;
     svg.setAttribute('viewBox', view.x + ' ' + view.y + ' ' + view.w + ' ' + view.h);
     var sr = svg.querySelector('#searect');
@@ -317,7 +405,8 @@
     TM.emit('view');
   }
   function resetView() {
-    var ar = stage.clientHeight / Math.max(1, stage.clientWidth);
+    var ar = aspect();
+    if (!(ar > 0)) return;                 // stage not laid out yet
     var w = fit.w, h = fit.w * ar;
     if (h < fit.h) { h = fit.h; w = fit.h / ar; }
     view.x = fit.x - (w - fit.w) / 2;
@@ -352,8 +441,7 @@
     view.x = b.x + b.width / 2 - (b.width + pad) / 2;
     view.y = b.y + b.height / 2;
     view.w = b.width + pad;
-    var ar = stage.clientHeight / Math.max(1, stage.clientWidth);
-    view.y -= view.w * ar / 2;
+    view.y -= view.w * aspect() / 2;
     pushView();
   }
 
@@ -361,6 +449,10 @@
   function regionAt(ev) {
     var t = ev.target;
     return (t && t.__id) ? t.__id : null;
+  }
+  function cityAt(ev) {
+    var t = ev.target;
+    return (t && t.__city) ? t.__city : null;
   }
   /** What one click acts on, given the current detail level. */
   function idsFor(id, ev) {
@@ -382,7 +474,7 @@
   function applyPaint(id, ev, first) {
     var ids = idsFor(id, ev);
     if (!ids.length) return;
-    var erase = ev.altKey || ev.ctrlKey || ev.metaKey || ev.button === 2;
+    var erase = ev.altKey || ev.ctrlKey || ev.metaKey;
     S.scrubbing = false;
     if (first) TM.state.pushUndo();
     var hex = erase ? null : S.activeColor;
@@ -396,9 +488,20 @@
   }
 
   function wire() {
-    svg.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    svg.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      // a pointer capture from the preceding pointerdown retargets this event
+      // to the <svg>, so hit-test by position instead of trusting e.target
+      var el2 = D.elementFromPoint(e.clientX, e.clientY);
+      TM.emit('contextmenu', {
+        id: (el2 && el2.__id) || null,
+        city: (el2 && el2.__city) || null,
+        x: e.clientX, y: e.clientY
+      });
+    });
 
     svg.addEventListener('pointerdown', function (e) {
+      if (e.button === 2) return;               // right-click opens the menu
       svg.setPointerCapture(e.pointerId);
       var id = regionAt(e);
       var wantPan = e.button === 1 || e.spaceKey || (!id && e.button === 0) ||
@@ -406,6 +509,13 @@
       if (wantPan) {
         panning = true; panStart = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
         svg.classList.add('panning');
+        return;
+      }
+      var cid = cityAt(e);
+      if (cid && S.level === 'city') {
+        S.scrubbing = false;
+        TM.state.setCityColor([cid],
+          (e.altKey || e.ctrlKey || e.metaKey) ? null : S.activeColor);
         return;
       }
       if (!id) return;
@@ -503,7 +613,8 @@
   }
 
   TM.view = {
-    build: build, clearHover: clearHover, styleCities: styleCities, applyTheme: applyTheme, repaint: repaint, paintFrom: paintFrom,
+    build: build, clearHover: clearHover, styleCities: styleCities,
+    restripe: restripe, paintCityDistricts: paintCityDistricts, applyTheme: applyTheme, repaint: repaint, paintFrom: paintFrom,
     resetView: resetView, zoomBy: zoomBy, zoomToRegion: zoomToRegion,
     updateLabels: updateLabels,
     getView: function () { return { x: view.x, y: view.y, w: view.w, h: view.h }; },

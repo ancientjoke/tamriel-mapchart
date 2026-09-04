@@ -54,9 +54,12 @@ coastline much darker, labels darker still. `tools/trace_ref.py`:
    axis. k-means was the obvious choice and the wrong one: it leaves interior
    clusters, which come out as discs, very obvious on the big southern regions.
    A cut always produces two parcels that each reach the edge, so subdivisions
-   look carved rather than stamped out. The cut bends along a smooth S-curve
+   look carved rather than stamped out. The cut follows a displacement with a
+   coastline's spectrum — a broad sweep carrying progressively finer detail —
    scaled to its own length, and is rejected if it would leave the two parcels
-   badly unbalanced. No split ever moves a border that came from the image.
+   badly unbalanced. Because the displacement stays a single-valued function of
+   the across-axis it can bend as much as it likes without crossing itself, so
+   the cut is always a clean split. No split ever moves a border from the image.
 7. **Drops label ink floating on water.** Text drawn over the sea is dark, so it
    does not classify as sea and would otherwise survive as letter-shaped islands —
    the word "Bravil" sitting in the Niben, for instance. Any land component that is
@@ -92,13 +95,29 @@ draws its borders in a hierarchy. The **Fill** switch sets a sensible default, a
 | Province | the nine provinces, heaviest |
 | Map region | the 89 regions traced from the reference |
 | Subregion | 188 subdivisions |
-| Sub-subregion | 423 parcels, lightest |
+| Sub-subregion | 429 parcels, lightest |
 
 Border widths are in map units but thin as you zoom in, so they stay readable at
 200× instead of swallowing the map.
 
-Colour is always stored per subregion, so switching levels never loses anything:
-filling a region just fills all of its subdivisions at once.
+Colour is always stored per parcel, so switching levels never loses anything:
+filling a region just fills all of its parcels at once.
+
+## Occupation
+
+**Right-click** any region for an occupation menu. Occupying paints the occupier's
+colour as a diagonal hatch *over* the owner's, so a red power occupying a yellow
+province reads as red-on-yellow stripes rather than replacing it — occupy or
+liberate a single region or a whole province at once. Occupation is stored
+separately from ownership, so liberating restores the original colour untouched,
+and both show up in the legend and in exports.
+
+## City mode
+
+Every city has a circular district around it, clipped to its own province so no
+disc bleeds across a border. Switch **Fill** to *City* and clicking colours those
+discs; unpainted ones show as a dashed circular outline. Capitals get a larger
+disc and a filled marker.
 
 ## What's in it
 
@@ -111,6 +130,9 @@ group, recolour every region in it at once, or click it to reselect those region
 province and city names, with lore aliases
 (“vvardenfell”, “holds”, “colovia”, “nibenay”, “argonia”, “alik'r”…) that expand to
 the right set. Or work down the province tree. Invert, select-all, fill-selection.
+
+**Immersive view.** <kbd>F</kbd> drops the whole interface and gives the map the
+window; <kbd>Tab</kbd> just folds the side panel away.
 
 **Styling.** Five map themes (MapChart — sampled off the reference — plus Parchment,
 Slate, Ashland, Ink), the three border widths, optional names and city markers,
@@ -147,7 +169,7 @@ painting, or every timeline frame as its own PNG.
 <kbd>K</kbd> capture frame · <kbd>Space</kbd> play/pause ·
 <kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> undo/redo ·
 <kbd>Ctrl</kbd>+<kbd>S</kbd> save · <kbd>0</kbd> fit · <kbd>+</kbd>/<kbd>−</kbd> zoom ·
-<kbd>Esc</kbd> clear selection
+<kbd>F</kbd> immersive · <kbd>Esc</kbd> clear selection
 
 ## Layout
 
@@ -161,7 +183,8 @@ js/timeline.js           keyframes, cross-fade playback, the built-in histories
 js/sim.js                the faction growth simulator
 js/exporter.js           standalone SVG, PNG, JSON, CSV
 js/ui.js                 panels, bindings, overlays, the event bus
-data/tamriel-map.js      generated geometry (423 parcels, 188 subregions, 89 map regions, 9 provinces)
+data/tamriel-map.js      generated geometry (429 parcels, 188 subregions, 89 map
+                         regions, 9 provinces, 69 city districts)
 tools/trace_ref.py       the tracer
 tools/bundle.py          single-file build
 ```

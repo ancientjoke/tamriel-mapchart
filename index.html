@@ -24,6 +24,7 @@
     <button class="btn sm" id="lv-region"    title="A click fills one region of the original map">Region</button>
     <button class="btn sm" id="lv-subregion" title="A click fills a subregion">Subregion</button>
     <button class="btn sm" id="lv-parcel"    title="A click fills a single sub-subregion">Sub-sub</button>
+    <button class="btn sm" id="lv-city"      title="Colour the circular city districts">City</button>
     <div class="tb-sep"></div>
     <button class="btn ico" id="b-undo" title="Undo (Ctrl+Z)">&#8630;</button>
     <button class="btn ico" id="b-redo" title="Redo (Ctrl+Shift+Z)">&#8631;</button>
@@ -31,6 +32,7 @@
     <div class="tb-grow"></div>
     <div id="status"></div>
     <div class="tb-sep"></div>
+    <button class="btn sm" id="b-immersive" title="Immersive view — just the map (F)">Immersive</button>
     <button class="btn sm pri" id="b-png" title="Export a PNG image">PNG</button>
   </header>
 
@@ -67,7 +69,9 @@
         <p class="hint">Click to fill whatever the <b>Fill</b> switch is set to — a whole
           province, one of the original map's 89 regions, or a single subdivision. Drag to
           paint several. <kbd>Shift</kbd>+click always takes the whole province,
-          <kbd>Alt</kbd>+click clears. Drag the sea to pan, scroll to zoom.</p>
+          <kbd>Alt</kbd>+click clears. <b>Right-click</b> a region for occupation — the
+          occupier's colour is striped over the owner's. Drag the sea to pan, scroll to
+          zoom.</p>
 
         <h4>Legend <span id="lg-count" style="color:var(--ink-dim)"></span></h4>
         <div id="legend-list"></div>
@@ -136,10 +140,13 @@
         <label class="ck"><input type="checkbox" id="s-capitals"> Capital cities</label>
         <label class="ck"><input type="checkbox" id="s-towns"> Other cities</label>
         <label class="ck"><input type="checkbox" id="s-citynames"> City names</label>
+        <label class="ck"><input type="checkbox" id="s-citydistricts"> City districts (circular)</label>
         <label class="ck" id="row-rivers"><input type="checkbox" id="s-rivers"> Rivers</label>
         <label class="ck" id="row-lakes"><input type="checkbox" id="s-lakes"> Lakes &amp; inland seas</label>
         <div class="fld"><span>City marker size <i id="s-cs-v" style="font-style:normal;color:var(--gold)"></i></span>
           <input type="range" id="s-cs" min="0.5" max="3" step="0.1"></div>
+        <div class="fld"><span>Occupation stripe width <i id="s-stripe-v" style="font-style:normal;color:var(--gold)"></i></span>
+          <input type="range" id="s-stripe" min="0.8" max="6" step="0.2"></div>
         <div class="fld" style="margin-top:10px"><span>Sub-subregion border <i id="s-bw-v" style="font-style:normal;color:var(--gold)"></i></span>
           <input type="range" id="s-bw" min="0" max="2" step="0.05"></div>
         <div class="fld"><span>Subregion border <i id="s-sbw-v" style="font-style:normal;color:var(--gold)"></i></span>
@@ -290,7 +297,7 @@
         <h4>Keyboard</h4>
         <p class="hint">
           <kbd>B</kbd> paint · <kbd>V</kbd> select · <kbd>I</kbd> pick colour ·
-          <kbd>P</kbd> cycle fill level · <kbd>Tab</kbd> hide panel · <kbd>Space</kbd> play/pause ·
+          <kbd>P</kbd> cycle fill level · <kbd>Tab</kbd> hide panel · <kbd>F</kbd> immersive · <kbd>Space</kbd> play/pause ·
           <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo ·
           <kbd>0</kbd> fit · <kbd>+</kbd>/<kbd>-</kbd> zoom · <kbd>K</kbd> capture frame ·
           <kbd>1</kbd>…<kbd>9</kbd> pick palette colour
@@ -318,6 +325,8 @@
       <button class="btn ico" id="z-out" title="Zoom out">&minus;</button>
       <button class="btn ico" id="z-fit" title="Fit">&#9723;</button>
     </div>
+    <button id="exit-immersive" title="Leave immersive view (F or Esc)">&times;</button>
+    <div id="ctxmenu"></div>
     <div id="playbar">
       <button class="btn ico" id="pb-play">&#9654;</button>
       <input type="range" id="pb-scrub" min="0" max="0" step="0.01" value="0">

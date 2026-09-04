@@ -47,6 +47,39 @@
       o.push('<path d="' + r.d + '" fill="' + (colors[r.id] || t.unpainted) + '"/>');
     });
     o.push('</g>');
+
+    // occupations: the occupier's colour hatched over the owner's
+    var occ = opts.occupied || S.doc.occupied || {};
+    var occHexes = {};
+    for (var oid in occ) occHexes[occ[oid]] = 1;
+    var hexList = Object.keys(occHexes);
+    if (hexList.length) {
+      var sw = st.stripeWidth || 2.4;
+      o.push('<defs>');
+      hexList.forEach(function (h) {
+        o.push('<pattern id="xs' + h.slice(1) + '" width="' + (sw * 2) + '" height="' +
+               (sw * 2) + '" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">' +
+               '<rect width="' + sw + '" height="' + (sw * 2) + '" fill="' + h + '"/></pattern>');
+      });
+      o.push('</defs><g stroke="none">');
+      M.regions.forEach(function (r) {
+        if (occ[r.id]) {
+          o.push('<path d="' + r.d + '" fill="url(#xs' + occ[r.id].slice(1) + ')"/>');
+        }
+      });
+      o.push('</g>');
+    }
+
+    if (st.showCityDistricts && M.cityDistricts) {
+      var cc = opts.cityColors || S.doc.cityColors || {};
+      o.push('<g stroke="' + t.provBorder + '" stroke-width="0.75" stroke-linejoin="round">');
+      M.cityDistricts.forEach(function (c) {
+        var f = cc[c.id];
+        o.push('<path d="' + c.d + '" fill="' + (f || 'none') + '" fill-opacity="' +
+               (f ? 0.92 : 0) + '"' + (f ? '' : ' stroke-dasharray="1.6 1.2"') + '/>');
+      });
+      o.push('</g>');
+    }
     if (st.showSubBorders && M.subRegions) {
       o.push('<g fill="none" stroke="' + (t.subBorder || t.border) + '" stroke-width="' +
              (st.subBorderWidth != null ? st.subBorderWidth : 0.6) +

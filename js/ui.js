@@ -55,6 +55,11 @@
     TM.on('timeline', function () { renderKeyframes(); renderEra(); renderLegend(); });
     TM.on('playhead', function () { renderScrubs(); renderEra(); renderLegend(); });
     TM.on('playstate', function () { renderPlayButtons(); renderScrubs(); });
+    TM.on('contextmenu', openMenu);
+    D.addEventListener('pointerdown', function (e) {
+      var m = $('ctxmenu');
+      if (m && m.classList.contains('on') && !m.contains(e.target)) closeMenu();
+    }, true);
     TM.on('pickcolor', function (c) {
       if (!c) { toast('That region has no colour yet'); return; }
       setActiveColor(c);
@@ -607,6 +612,9 @@
     $('s-capitals').checked = !!st.showCapitals;
     $('s-towns').checked = !!st.showTowns;
     $('s-citynames').checked = !!st.showCityNames;
+    $('s-citydistricts').checked = !!st.showCityDistricts;
+    $('s-stripe').value = st.stripeWidth != null ? st.stripeWidth : 2.4;
+    $('s-stripe-v').textContent = $('s-stripe').value;
     $('s-cs').value = st.cityScale != null ? st.cityScale : 1;
     $('s-cs-v').textContent = '×' + $('s-cs').value;
     $('s-baseborders').checked = st.showBaseBorders !== false;
@@ -636,6 +644,55 @@
     renderMapLegend(); renderEra(); renderStatus();
   }
 
+  /* ---------- right-click menu ---------- */
+  function closeMenu() {
+    var m = $('ctxmenu');
+    if (m) m.classList.remove('on');
+  }
+  function openMenu(info) {
+    var m = $('ctxmenu');
+    if (!info.id && !info.city) { closeMenu(); return; }
+    var r = info.id ? S.regions[info.id] : null;
+    var scope = info.id ? TM.idsFor(info.id, {}) : [];
+    var provIds = r ? S.byProvince[r.province] : [];
+    var title = r ? (S.level === 'province' ? r.province
+                     : (S.level === 'parcel' ? r.name : (r.base || r.name)))
+                  : (S.map.cityDistricts || []).filter(function (c) {
+                      return c.id === info.city; }).map(function (c) {
+                      return c.name; })[0];
+    var items = [];
+    if (info.city) {
+      items.push(['Colour this city', function () { ST.setCityColor([info.city], S.activeColor); }]);
+      items.push(['Clear this city', function () { ST.setCityColor([info.city], null); }]);
+    }
+    if (r) {
+      items.push(['Fill with active colour', function () { ST.setColor(scope, S.activeColor); }]);
+      items.push(['Occupy with active colour', function () {
+        ST.setOccupied(scope, S.activeColor);
+        toast('Occupied ' + scope.length + ' — striped over the owner');
+      }]);
+      items.push(['Occupy the whole province', function () {
+        ST.setOccupied(provIds.slice(), S.activeColor);
+        toast('Occupied all of ' + r.province);
+      }]);
+      items.push(['Liberate (clear occupation)', function () { ST.setOccupied(scope, null); }]);
+      items.push(['Liberate the province', function () { ST.setOccupied(provIds.slice(), null); }]);
+      items.push(['Clear colour', function () { ST.setColor(scope, null); }]);
+    }
+    m.innerHTML = '<div class="ct">' + esc(title || '') + '</div>';
+    items.forEach(function (it) {
+      var b = D.createElement('button');
+      b.textContent = it[0];
+      b.onclick = function () { it[1](); closeMenu(); };
+      m.appendChild(b);
+    });
+    m.classList.add('on');
+    m.style.left = '0px'; m.style.top = '0px';
+    var w = m.offsetWidth, h = m.offsetHeight;
+    m.style.left = Math.min(info.x, W.innerWidth - w - 8) + 'px';
+    m.style.top = Math.min(info.y, W.innerHeight - h - 8) + 'px';
+  }
+
   /* ---------- tabs / modes ---------- */
   function setTab(name) {
     Array.prototype.forEach.call(D.querySelectorAll('#tabs button'), function (b) {
@@ -654,7 +711,7 @@
     svg.classList.toggle('picking', m === 'pick');
     svg.style.cursor = m === 'select' ? 'pointer' : (m === 'pick' ? 'copy' : 'crosshair');
   }
-  var LEVELS = ['province', 'region', 'subregion', 'parcel'];
+  var LEVELS = ['province', 'region', 'subregion', 'parcel', 'city'];
   function setLevel(l, quiet) {
     if (LEVELS.indexOf(l) < 0) l = 'region';
     S.level = l;
@@ -664,6 +721,14 @@
     var st = S.doc.style;
     st.showSubBorders = (l === 'subregion' || l === 'parcel');
     st.showBorders = (l === 'parcel');
+    if (l === 'city') {
+      st.showCityDistricts = true;
+      st.showCapitals = true;
+      st.showTowns = true;
+      $('s-citydistricts').checked = true;
+      $('s-capitals').checked = true;
+      $('s-towns').checked = true;
+    }
     $('s-borders').checked = st.showBorders;
     $('s-subborders').checked = st.showSubBorders;
     V.applyTheme();
@@ -759,13 +824,18 @@
      ['s-baseborders', 'showBaseBorders'], ['s-provborders', 'showProvBorders'],
      ['s-coast', 'showCoast'],
      ['s-capitals', 'showCapitals'], ['s-towns', 'showTowns'],
-     ['s-citynames', 'showCityNames'],
+     ['s-citynames', 'showCityNames'], ['s-citydistricts', 'showCityDistricts'],
      ['s-rivers', 'showRivers'], ['s-lakes', 'showLakes']].forEach(function (p) {
       $(p[0]).onchange = function () { S.doc.style[p[1]] = $(p[0]).checked; styleChanged(); };
     });
     $('s-sbw').oninput = function () {
       S.doc.style.subBorderWidth = parseFloat($('s-sbw').value);
       $('s-sbw-v').textContent = S.doc.style.subBorderWidth; styleChanged();
+    };
+    $('s-stripe').oninput = function () {
+      S.doc.style.stripeWidth = parseFloat($('s-stripe').value);
+      $('s-stripe-v').textContent = S.doc.style.stripeWidth;
+      V.restripe(); S.dirty = true;
     };
     $('s-cs').oninput = function () {
       S.doc.style.cityScale = parseFloat($('s-cs').value);
@@ -893,6 +963,18 @@
       toast('Cleared');
     };
 
+    function setImmersive(on) {
+      var app = D.getElementById('app');
+      app.classList.toggle('immersive', on);
+      $('b-immersive').classList.toggle('on', on);
+      setTimeout(function () { V.resetView(); }, 210);
+    }
+    $('b-immersive').onclick = function () {
+      setImmersive(!D.getElementById('app').classList.contains('immersive'));
+    };
+    $('exit-immersive').onclick = function () { setImmersive(false); };
+    TM.setImmersive = setImmersive;
+
     $('side-toggle').onclick = function () {
       var app = D.getElementById('app');
       var on = app.classList.toggle('collapsed');
@@ -977,12 +1059,19 @@
         setLevel(LEVELS[(LEVELS.indexOf(S.level) + 1) % LEVELS.length]);
         break;
       case 'tab': e.preventDefault(); $('side-toggle').onclick(); break;
+      case 'f':
+        TM.setImmersive(!D.getElementById('app').classList.contains('immersive'));
+        break;
       case 'k': TL.add(); toast('Captured frame ' + TL.frames().length); break;
       case ' ': e.preventDefault(); togglePlay(); break;
       case '0': V.resetView(); break;
       case '+': case '=': V.zoomBy(1 / 1.35); break;
       case '-': V.zoomBy(1.35); break;
-      case 'escape': S.selection = {}; TM.emit('selection'); break;
+      case 'escape':
+        if (D.getElementById('app').classList.contains('immersive')) {
+          TM.setImmersive(false);
+        } else { S.selection = {}; TM.emit('selection'); }
+        break;
       default:
         if (/^[1-9]$/.test(k)) {
           var pal = TM.PALETTES[S.activePalette] || [];

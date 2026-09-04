@@ -49,10 +49,11 @@ SEED_AREA = 150           # px: an interior blob this big counts as a region
 MIN_ISLAND = 45           # px: standalone islands may be smaller than that
 TARGET_AREA = 2500        # px: aim for subdivisions around this size
 MAX_SPLIT = 5
-SPLIT_WOBBLE = 0.16       # how far a cut wanders, as a fraction of its length
+SPLIT_WOBBLE = 0.21       # how far a cut wanders, as a fraction of its length
 SUB_AREA = 2600           # px: target size of a subregion
 SUBSUB_AREA = 1150        # px: target size of a sub-subregion
 SEA_LINK = 9              # px: parcels this close across water count as neighbours
+CITY_RADIUS = 13.0        # px: reach of a city district
 CHAIKIN = 2
 SIMPLIFY = 0.6
 OUTLINE_SIMPLIFY = 1.1    # stroke-only layers can be much coarser
@@ -382,14 +383,17 @@ def region_adjacency(lab):
 # --------------------------------------------------------------------------- #
 # 6. depth: split the big regions without touching traced borders
 # --------------------------------------------------------------------------- #
-def wander(n, rng, amp, harmonics=2):
-    """A smooth 1-D displacement: a gentle S-curve, not a wiggle."""
+def wander(n, rng, amp, harmonics=6):
+    """A 1-D displacement with a coastline's spectrum: a broad sweep carrying
+    progressively finer detail.  Because it stays a single-valued function of
+    the across-axis it can bend as much as it likes without ever crossing
+    itself, so the cut is always a clean split."""
     t = np.linspace(0.0, 1.0, max(2, n))
     out = np.zeros_like(t)
     for h in range(harmonics):
-        f = (h + 1) * rng.uniform(0.35, 0.9)
-        out += rng.uniform(0.5, 1.0) / (h + 1) * np.sin(2 * np.pi * f * t +
-                                                        rng.uniform(0, 2 * np.pi))
+        f = (h + 1) * rng.uniform(0.4, 0.95)
+        out += rng.uniform(0.6, 1.0) / (h + 1) ** 1.05 * np.sin(
+            2 * np.pi * f * t + rng.uniform(0, 2 * np.pi))
     sd = out.std() or 1.0
     return out / sd * amp
 
@@ -889,6 +893,37 @@ def main():
                               regions=sorted(id_of[r] for r in geoms
                                              if final_prov[r] == pname)))
 
+    # circular city districts -- a city-state's reach around its seat, clipped
+    # to its own province so a disc never bleeds across a border
+    from shapely.geometry import Point as _Pt
+    prov_geom = {}
+    for prec in provinces:
+        prov_geom[prec["name"]] = unary_union(
+            [geoms[r] for r in geoms if final_prov[r] == prec["name"]])
+    city_districts = []
+    for brec in base_regions:
+        if not brec.get("city"):
+            continue
+        r = CITY_RADIUS * (1.55 if brec.get("capital") else 1.0)
+        disc = _Pt(brec["cityAt"][0], brec["cityAt"][1]).buffer(r, quad_segs=24)
+        g = disc.intersection(land_geom)
+        pg = prov_geom.get(brec["province"])
+        if pg is not None and not pg.is_empty:
+            g2 = g.intersection(pg)
+            if not g2.is_empty and g2.area > disc.area * 0.15:
+                g = g2
+        if isinstance(g, MultiPolygon):
+            g = max(g.geoms, key=lambda q: q.area)
+        if g.is_empty or g.area < 12:
+            continue
+        city_districts.append(dict(
+            id="city_" + slug(brec["city"]), name=brec["city"],
+            province=brec["province"], capital=bool(brec.get("capital")),
+            baseId=brec["id"], at=brec["cityAt"], r=round(r, 1),
+            d=geom_path(g.simplify(0.25))))
+    print("city discs   : %d (%d capitals)"
+          % (len(city_districts), sum(1 for c in city_districts if c["capital"])))
+
     b = land_geom.bounds
     data = dict(
         canvas=[w, h],
@@ -898,6 +933,7 @@ def main():
         scenery=[], lakes=[], rivers=[],
         provinces=provinces, baseRegions=base_regions,
         subRegions=sub_regions, regions=out_regions,
+        cityDistricts=city_districts,
     )
     out = os.path.join(ROOT, "data", "tamriel-map.js")
     with open(out, "w") as f:

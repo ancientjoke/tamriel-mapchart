@@ -73,6 +73,7 @@
       borderWidth: 0.35, subBorderWidth: 0.6,
       baseBorderWidth: 0.95, provBorderWidth: 1.7,
       showCapitals: false, showTowns: false, showCityNames: false,
+      showCityDistricts: false, stripeWidth: 2.4,
       cityScale: 1,
       title: 'Tamriel', subtitle: '',
       legendTitle: 'Legend', showLegend: true,
@@ -87,7 +88,9 @@
     return {
       version: 3,
       name: 'Untitled map',
-      colors: {},                     // regionId -> hex
+      colors: {},                     // parcelId -> hex
+      occupied: {},                   // parcelId -> hex of the occupying power
+      cityColors: {},                 // cityId   -> hex
       groups: [],                     // [{color, label}]
       style: defaultStyle(),
       keyframes: [],                  // [{date,title,note,colors,groups}]
@@ -124,7 +127,8 @@
   var undoStack = [], redoStack = [], LIMIT = 120;
 
   function snap() {
-    return JSON.stringify({ colors: S.doc.colors, groups: S.doc.groups });
+    return JSON.stringify({ colors: S.doc.colors, groups: S.doc.groups,
+                            occupied: S.doc.occupied, cityColors: S.doc.cityColors });
   }
   function pushUndo() {
     S.scrubbing = false;
@@ -137,6 +141,8 @@
   function apply(json) {
     var o = JSON.parse(json);
     S.doc.colors = o.colors; S.doc.groups = o.groups;
+    S.doc.occupied = o.occupied || {};
+    S.doc.cityColors = o.cityColors || {};
   }
   function undo() {
     if (!undoStack.length) return false;
@@ -172,7 +178,14 @@
     if (!hex) return null;
     var g = groupFor(hex);
     if (g) { if (label && /^Group \d+$/.test(g.label)) g.label = label; return g; }
-    g = { color: hex, label: label || ('Group ' + (S.doc.groups.length + 1)) };
+    if (!label) {                       // pick the first free "Group n"
+      var used = {};
+      S.doc.groups.forEach(function (x) { used[x.label] = 1; });
+      var n = S.doc.groups.length + 1;
+      while (used['Group ' + n]) n++;
+      label = 'Group ' + n;
+    }
+    g = { color: hex, label: label };
     S.doc.groups.push(g);
     return g;
   }
@@ -180,6 +193,8 @@
     hex = normHex(hex);
     var n = 0;
     for (var k in S.doc.colors) if (S.doc.colors[k] === hex) n++;
+    for (var o in S.doc.occupied) if (S.doc.occupied[o] === hex) n++;
+    for (var c in S.doc.cityColors) if (S.doc.cityColors[c] === hex) n++;
     return n;
   }
   function pruneGroups() {
@@ -196,6 +211,31 @@
     for (var i = 0; i < ids.length; i++) {
       if (!S.regions[ids[i]]) continue;
       if (hex) S.doc.colors[ids[i]] = hex; else delete S.doc.colors[ids[i]];
+    }
+    pruneGroups();
+    W.TM.emit('paint');
+  }
+
+  /** Mark parcels as occupied by a power: its colour is striped over theirs. */
+  function setOccupied(ids, hex) {
+    if (!Array.isArray(ids)) ids = [ids];
+    hex = hex === null ? null : normHex(hex);
+    pushUndo();
+    if (hex) ensureGroup(hex);
+    for (var i = 0; i < ids.length; i++) {
+      if (hex) S.doc.occupied[ids[i]] = hex; else delete S.doc.occupied[ids[i]];
+    }
+    pruneGroups();
+    W.TM.emit('paint');
+  }
+
+  function setCityColor(ids, hex) {
+    if (!Array.isArray(ids)) ids = [ids];
+    hex = hex === null ? null : normHex(hex);
+    pushUndo();
+    if (hex) ensureGroup(hex);
+    for (var i = 0; i < ids.length; i++) {
+      if (hex) S.doc.cityColors[ids[i]] = hex; else delete S.doc.cityColors[ids[i]];
     }
     pruneGroups();
     W.TM.emit('paint');
@@ -244,6 +284,14 @@
     out.colors = {};
     var src = d.colors || d.fills || {};
     for (var k in src) { var h = normHex(src[k]); if (h) out.colors[k] = h; }
+    out.occupied = {};
+    for (var q in (d.occupied || {})) {
+      var oh = normHex(d.occupied[q]); if (oh) out.occupied[q] = oh;
+    }
+    out.cityColors = {};
+    for (var cq in (d.cityColors || {})) {
+      var ch = normHex(d.cityColors[cq]); if (ch) out.cityColors[cq] = ch;
+    }
     out.groups = (d.groups || d.legend || []).map(function (g, i) {
       return { color: normHex(g.color) || '#888888', label: g.label || g.name || ('Group ' + (i + 1)) };
     }).filter(function (g) { return g.color; });
@@ -281,7 +329,8 @@
     pushUndo: pushUndo, undo: undo, redo: redo, resetHistory: resetHistory,
     canUndo: function () { return undoStack.length > 0; },
     canRedo: function () { return redoStack.length > 0; },
-    setColor: setColor, normHex: normHex, groupFor: groupFor, ensureGroup: ensureGroup,
+    setColor: setColor, setOccupied: setOccupied, setCityColor: setCityColor,
+    normHex: normHex, groupFor: groupFor, ensureGroup: ensureGroup,
     countColor: countColor, pruneGroups: pruneGroups,
     listSlots: listSlots, saveSlot: saveSlot, loadSlot: loadSlot, deleteSlot: deleteSlot,
     autosave: autosave, loadAutosave: loadAutosave
