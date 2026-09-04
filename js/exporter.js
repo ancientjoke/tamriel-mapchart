@@ -1,5 +1,5 @@
 /* ==========================================================================
-   exporter.js -- standalone SVG, PNG raster, animated-frame PNGs, JSON I/O
+   exporter.js -- standalone SVG, PNG raster, JSON and CSV I/O
    ========================================================================== */
 (function (W) {
   'use strict';
@@ -20,8 +20,8 @@
   /* --------------------------------------------------- self-contained SVG */
   /**
    * Renders the map to an SVG string that carries no CSS dependencies.
-   * `opts.colors` overrides the painting (used for timeline frames),
-   * `opts.box` overrides the viewBox, `opts.legend`/`opts.caption` add chrome.
+   * `opts.colors` overrides the painting,
+   * `opts.box` overrides the viewBox, `opts.groups` overrides the legend.
    */
   function buildSVG(opts) {
     opts = opts || {};
@@ -149,17 +149,15 @@
       o.push('</g>');
     }
 
-    /* --- chrome: title, caption, legend --- */
+    /* --- chrome: title, subtitle, legend --- */
     var pad = box.w * 0.014;
     var titleSize = box.w * 0.024;
-    if (st.title || opts.caption) {
+    if (st.title || st.subtitle) {
       // measure the block first so it can sit on its own panel instead of
       // colliding with the region labels underneath
       var lines = [];
       if (st.title) lines.push({ t: st.title, s: titleSize, w: 600, o: 1 });
       if (st.subtitle) lines.push({ t: st.subtitle, s: titleSize * 0.5, w: 400, o: 0.9 });
-      if (opts.caption) lines.push({ t: opts.caption, s: titleSize * 0.5, w: 600, o: 1 });
-      if (opts.caption2) lines.push({ t: opts.caption2, s: titleSize * 0.36, w: 400, o: 0.85 });
       var bw = 0, bh = pad * 0.5;
       lines.forEach(function (L) {
         bw = Math.max(bw, L.t.length * L.s * 0.47);
@@ -183,7 +181,9 @@
     }
     if (st.showLegend && groups && groups.length) {
       var lh = box.w * 0.0115, lw = box.w * 0.13;
-      var maxLbl = groups.reduce(function (m, g) { return Math.max(m, (g.label || '').length); }, 6);
+      var maxLbl = groups.reduce(function (m, g) {
+        return Math.max(m, (g.label || '').length + (st.legendCounts ? 6 : 0));
+      }, 6);
       lw = Math.max(lw, maxLbl * lh * 0.5 + lh * 2.8);
       var lhh = groups.length * lh + lh * 2.6;
       var at = st.legendAt || [0.985, 0.02];
@@ -207,9 +207,11 @@
                (lh * 0.74) + '" height="' + (lh * 0.74) + '" rx="' + (lh * 0.1) +
                '" fill="' + g.color + '" stroke="rgba(0,0,0,.55)" stroke-width="' +
                (lh * 0.045) + '"/>');
+        var lbl = g.label || '';
+        if (st.legendCounts) lbl += '  (' + TM.state.countColor(g.color) + ')';
         o.push('<text x="' + (lx + lh * 1.72) + '" y="' + (y + lh * 0.02) + '" font-size="' +
                (lh * 0.66) + '" font-family="Segoe UI,system-ui,sans-serif" fill="' + t.label +
-               '">' + esc(g.label || '') + '</text>');
+               '">' + esc(lbl) + '</text>');
       });
       o.push('</g>');
     }
@@ -247,15 +249,7 @@
 
   function exportPNG(scale) {
     scale = scale || S.doc.style.exportScale || 2;
-    var kf = TM.timeline.frames().length ? TM.timeline.frameAt(S.playhead) : null;
-    var opts = { box: currentBox(), scale: scale };
-    if (S.playing || (kf && S.doc.style.captionFromTimeline)) {
-      opts.colors = TM.timeline.colorsAt(S.playhead);
-      opts.groups = kf.groups && kf.groups.length ? kf.groups : S.doc.groups;
-      opts.caption = kf.date + (kf.title ? ' — ' + kf.title : '');
-      opts.caption2 = kf.note || '';
-    }
-    var r = buildSVG(opts);
+    var r = buildSVG({ box: currentBox(), scale: scale });
     return rasterise(r.svg, r.w, r.h).then(function (canvas) {
       return new Promise(function (res) {
         canvas.toBlob(function (b) {
@@ -264,33 +258,6 @@
         }, 'image/png');
       });
     });
-  }
-
-  /** Export every keyframe as its own PNG (an animation strip you can stitch). */
-  function exportFrames(scale) {
-    scale = scale || 1.5;
-    var f = TM.timeline.frames();
-    if (!f.length) return Promise.resolve(0);
-    var box = currentBox(), i = 0;
-    function next() {
-      if (i >= f.length) return Promise.resolve(f.length);
-      var kf = f[i];
-      var r = buildSVG({
-        box: box, scale: scale, colors: kf.colors,
-        groups: kf.groups && kf.groups.length ? kf.groups : S.doc.groups,
-        caption: kf.date + (kf.title ? ' — ' + kf.title : ''), caption2: kf.note || ''
-      });
-      var n = i;
-      return rasterise(r.svg, r.w, r.h).then(function (canvas) {
-        return new Promise(function (res) {
-          canvas.toBlob(function (b) {
-            download(b, slug(S.doc.name) + '-' + String(n + 1).padStart(2, '0') + '.png');
-            setTimeout(res, 260);
-          }, 'image/png');
-        });
-      }).then(function () { i++; return next(); });
-    }
-    return next();
   }
 
   /* ----------------------------------------------------------------- JSON */
@@ -333,7 +300,7 @@
 
   TM.exporter = {
     buildSVG: buildSVG, exportSVG: exportSVG, exportPNG: exportPNG,
-    exportFrames: exportFrames, exportJSON: exportJSON, importJSON: importJSON,
+    exportJSON: exportJSON, importJSON: importJSON,
     exportCSV: exportCSV, download: download
   };
 })(window);

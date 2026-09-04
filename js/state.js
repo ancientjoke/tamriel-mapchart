@@ -22,7 +22,13 @@
     'Muted':    ['#9c6b6b', '#6b829c', '#7a9c6b', '#9c936b', '#8a6b9c', '#6b9c95',
                  '#b08a6b', '#9c6b85', '#7c876b', '#6b769c', '#a3a36b', '#8a7266'],
     'Greys':    ['#111111', '#2b2b2b', '#454545', '#5f5f5f', '#797979', '#939393',
-                 '#adadad', '#c7c7c7', '#e1e1e1', '#f5f5f5']
+                 '#adadad', '#c7c7c7', '#e1e1e1', '#f5f5f5'],
+    'Guilds':   ['#7d2b2b', '#1f4f7a', '#2f6b3f', '#8a7320', '#4f2f6b', '#1f6b6b',
+                 '#a8622f', '#6b2f4f', '#3f5230', '#243c63', '#8a8a3a', '#5e3a2f'],
+    'Heraldry': ['#a41f22', '#12386e', '#1c6b3a', '#d8a520', '#4a1f6b', '#0f5f63',
+                 '#e0e0dc', '#1a1a1a', '#8a5a1f', '#6e1f4a', '#3f6b1f', '#c96f1f'],
+    'Pastel':   ['#e8b4b0', '#b0c8e8', '#b6dfc0', '#eedfae', '#cfb8e0', '#a9dbd8',
+                 '#f0c9a8', '#e6b3cd', '#cdd8ae', '#b6bfe0', '#e3e3ae', '#d3bcac']
   };
 
   /* ------------------------------------------------------------ map themes */
@@ -79,22 +85,20 @@
       legendTitle: 'Legend', showLegend: true,
       legendAt: [0.985, 0.02], legendAnchor: 'tr',
       labelSource: 'region',
-      crossfade: true, secPerFrame: 1.6, loopPlay: false,
-      exportScale: 2, exportView: 'fit', captionFromTimeline: true
+      legendCols: 1, legendSize: 11.5, legendCounts: false,
+      exportScale: 2, exportView: 'fit'
     };
   }
 
   function newDoc() {
     return {
-      version: 3,
+      version: 4,
       name: 'Untitled map',
       colors: {},                     // parcelId -> hex
       occupied: {},                   // parcelId -> hex of the occupying power
       cityColors: {},                 // cityId   -> hex
       groups: [],                     // [{color, label}]
-      style: defaultStyle(),
-      keyframes: [],                  // [{date,title,note,colors,groups}]
-      factions: []
+      style: defaultStyle()
     };
   }
 
@@ -111,16 +115,13 @@
     provBases: {},        // province -> [baseIds]
     activeColor: '#8c2f2a',
     activePalette: 'Banners',
+    recent: [],           // most-recently-used colours, newest first
     selection: {},        // id -> true
     mode: 'paint',        // paint | select | pick
     level: 'region',      // province | region | subregion | parcel
     tool: 'region',       // kept for province-wide Shift+click
-    playhead: 0,
-    playing: false,
-    activeKf: -1,
     hover: null,
-    dirty: false,
-    scrubbing: false
+    dirty: false
   };
 
   /* ----------------------------------------------------------------- undo */
@@ -131,7 +132,6 @@
                             occupied: S.doc.occupied, cityColors: S.doc.cityColors });
   }
   function pushUndo() {
-    S.scrubbing = false;
     undoStack.push(snap());
     if (undoStack.length > LIMIT) undoStack.shift();
     redoStack.length = 0;
@@ -203,7 +203,6 @@
 
   /* ---------------------------------------------------------------- paint */
   function setColor(ids, hex, noUndo) {
-    S.scrubbing = false;
     if (!Array.isArray(ids)) ids = [ids];
     hex = hex === null ? null : normHex(hex);
     if (!noUndo) pushUndo();
@@ -241,9 +240,19 @@
     W.TM.emit('paint');
   }
 
+  /* ------------------------------------------------- recent & saved colours */
+  var RECENT_MAX = 14;
+  function noteColor(hex) {
+    hex = normHex(hex);
+    if (!hex) return;
+    S.recent = [hex].concat(S.recent.filter(function (c) { return c !== hex; }))
+                    .slice(0, RECENT_MAX);
+  }
+
   /* -------------------------------------------------------------- storage */
   var LS_SLOTS = 'tamriel.mapchart.slots';
   var LS_AUTO = 'tamriel.mapchart.autosave';
+  var LS_SWATCH = 'tamriel.mapchart.swatches';
 
   function safeGet(k) { try { return W.localStorage.getItem(k); } catch (e) { return null; } }
   function safeSet(k, v) { try { W.localStorage.setItem(k, v); return true; } catch (e) { return false; } }
@@ -269,6 +278,25 @@
   function deleteSlot(name) {
     safeSet(LS_SLOTS, JSON.stringify(listSlots().filter(function (s) { return s.name !== name; })));
   }
+  function listSwatches() {
+    try {
+      return (JSON.parse(safeGet(LS_SWATCH) || '[]') || [])
+        .map(normHex).filter(Boolean);
+    } catch (e) { return []; }
+  }
+  function addSwatch(hex) {
+    hex = normHex(hex);
+    if (!hex) return false;
+    var all = listSwatches();
+    if (all.indexOf(hex) >= 0) return false;
+    all.unshift(hex);
+    safeSet(LS_SWATCH, JSON.stringify(all.slice(0, 40)));
+    return true;
+  }
+  function removeSwatch(hex) {
+    safeSet(LS_SWATCH, JSON.stringify(listSwatches().filter(function (c) { return c !== hex; })));
+  }
+
   function autosave() { safeSet(LS_AUTO, JSON.stringify(S.doc)); }
   function loadAutosave() {
     var raw = safeGet(LS_AUTO);
@@ -298,24 +326,11 @@
     var st = d.style || {};
     for (var p in out.style) if (st[p] !== undefined) out.style[p] = st[p];
     if (!THEMES[out.style.theme]) out.style.theme = 'mapchart';
-    out.keyframes = (d.keyframes || []).map(function (k, i) {
-      var c = {};
-      for (var r in (k.colors || {})) { var hh = normHex(k.colors[r]); if (hh) c[r] = hh; }
-      return {
-        date: k.date || ('Frame ' + (i + 1)), title: k.title || '', note: k.note || '',
-        colors: c,
-        groups: (k.groups || []).map(function (g) {
-          return { color: normHex(g.color) || '#888888', label: g.label || '' };
-        })
-      };
-    });
-    out.factions = d.factions || [];
     return out;
   }
   function setDoc(d) {
     S.doc = migrate(d);
     resetHistory();
-    S.activeKf = -1; S.playhead = 0; S.playing = false;
     S.selection = {};
     W.TM.emit('doc');
   }
@@ -333,6 +348,8 @@
     normHex: normHex, groupFor: groupFor, ensureGroup: ensureGroup,
     countColor: countColor, pruneGroups: pruneGroups,
     listSlots: listSlots, saveSlot: saveSlot, loadSlot: loadSlot, deleteSlot: deleteSlot,
+    listSwatches: listSwatches, addSwatch: addSwatch, removeSwatch: removeSwatch,
+    noteColor: noteColor,
     autosave: autosave, loadAutosave: loadAutosave
   };
 })(window);

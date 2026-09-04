@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tamriel MapChart — Elder Scrolls province &amp; region colourer</title>
-<meta name="description" content="Colour in the provinces and regions of Tamriel, build a legend, and simulate how borders change over the eras.">
+<title>Tamriel MapChart — colour the provinces, regions and subregions of Tamriel</title>
+<meta name="description" content="A deeper MapChart for Tamriel: colour in ten provinces, 89 traced map regions and 222 subregions, mark occupations, name your legend and export a print-ready map.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23171410'/><path d='M16 5l3.6 7.2 8 1.2-5.8 5.6 1.4 7.9L16 23.2l-7.2 3.7 1.4-7.9-5.8-5.6 8-1.2z' fill='%23c8a558'/></svg>">
 <link rel="stylesheet" href="css/app.css">
 </head>
@@ -14,26 +14,32 @@
   <!-- ==================== top bar ==================== -->
   <header id="topbar">
     <div id="brand"><b>TAMRIEL</b><span>MapChart</span></div>
-    <div class="tb-sep"></div>
-    <button class="btn sm" id="m-paint"  title="Paint regions (B)">Paint</button>
-    <button class="btn sm" id="m-select" title="Select regions (V)">Select</button>
-    <button class="btn sm" id="m-pick"   title="Pick a colour from the map (I)">Pick</button>
-    <div class="tb-sep"></div>
-    <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim)">Fill</span>
-    <button class="btn sm" id="lv-province"  title="A click fills a whole province">Province</button>
-    <button class="btn sm" id="lv-region"    title="A click fills one region of the original map">Region</button>
-    <button class="btn sm" id="lv-subregion" title="A click fills a subregion">Subregion</button>
-    <div class="tb-sep"></div>
-    <button class="btn sm" id="lv-city" title="Show and colour the circular city districts (C) — rides along with any level">City</button>
+
+    <div class="seg" id="seg-mode" role="group" aria-label="Tool">
+      <button id="m-paint"  title="Paint regions (B)"><i class="gi">&#9679;</i>Paint</button>
+      <button id="m-select" title="Select regions (V)"><i class="gi">&#9744;</i>Select</button>
+      <button id="m-pick"   title="Pick a colour from the map (I)"><i class="gi">&#9698;</i>Pick</button>
+    </div>
+
+    <div class="seg lbl" id="seg-level" role="group" aria-label="Fill level">
+      <span class="cap">Fill</span>
+      <button id="lv-province"  title="A click fills a whole province">Province</button>
+      <button id="lv-region"    title="A click fills one of the 89 traced map regions">Region</button>
+      <button id="lv-subregion" title="A click fills a single subregion">Subregion</button>
+    </div>
+
+    <button class="btn sm ghost" id="lv-city" title="Show and colour the circular city districts (C) — rides along with any level">&#9678; Cities</button>
+
     <div class="tb-sep"></div>
     <button class="btn ico" id="b-undo" title="Undo (Ctrl+Z)">&#8630;</button>
     <button class="btn ico" id="b-redo" title="Redo (Ctrl+Shift+Z)">&#8631;</button>
-    <button class="btn sm" id="b-fit" title="Fit the whole map (0)">Fit</button>
+    <button class="btn ico" id="b-fit"  title="Fit the whole map (0)">&#9723;</button>
+
     <div class="tb-grow"></div>
     <div id="status"></div>
     <div class="tb-sep"></div>
-    <button class="btn sm" id="b-immersive" title="Immersive view — just the map (F)">Immersive</button>
-    <button class="btn sm pri" id="b-png" title="Export a PNG image">PNG</button>
+    <button class="btn sm ghost" id="b-immersive" title="Immersive view — just the map (F)">Immersive</button>
+    <button class="btn sm pri" id="b-png" title="Export a PNG image">Export PNG</button>
   </header>
 
   <!-- ==================== sidebar ==================== -->
@@ -43,44 +49,56 @@
       <button data-p="paint">Paint</button>
       <button data-p="select">Select</button>
       <button data-p="style">Style</button>
-      <button data-p="time">Time</button>
-      <button data-p="sim">Sim</button>
       <button data-p="file">File</button>
     </nav>
     <div id="panels">
 
       <!-- ---------- paint ---------- -->
       <section class="panel" data-p="paint">
-        <h4>Choose a colour</h4>
-        <div id="swatches"></div>
+        <h4>Palette</h4>
         <div class="palset" id="palset"></div>
+        <div id="swatches"></div>
+
         <div id="curcolor">
           <div id="curchip"></div>
           <div class="grow">
             <div class="row">
               <input type="color" id="pk-color" value="#8c2f2a" title="Pick any colour">
-              <input type="text" id="pk-hex" class="grow" value="#8c2f2a" spellcheck="false">
+              <input type="text" id="pk-hex" class="grow mono" value="#8c2f2a" spellcheck="false">
+              <button class="btn ico" id="pk-save" title="Save this colour to My colours">&#9734;</button>
             </div>
             <div class="row" style="margin-top:6px">
               <input type="text" id="pk-label" class="grow" placeholder="Name this colour in the legend">
             </div>
           </div>
         </div>
-        <p class="hint">Click to fill whatever the <b>Fill</b> switch is set to — a whole
-          province, one of the original map's 89 regions, or a single subdivision. Drag to
-          paint several. <kbd>Shift</kbd>+click always takes the whole province,
-          <kbd>Alt</kbd>+click clears. <b>Right-click</b> a region for occupation — the
-          occupier's colour is striped over the owner's. Drag the sea to pan, scroll to
-          zoom.</p>
 
-        <h4>Legend <span id="lg-count" style="color:var(--ink-dim)"></span></h4>
+        <div id="recent-wrap" hidden>
+          <h5>Recent</h5>
+          <div class="strip" id="recent"></div>
+        </div>
+        <div id="mine-wrap" hidden>
+          <h5>My colours <span class="sub">right-click to forget</span></h5>
+          <div class="strip" id="mine"></div>
+        </div>
+
+        <p class="hint">Click to fill whatever the <b>Fill</b> switch is set to.
+          Drag to paint several. <kbd>Shift</kbd>+click takes the whole province,
+          <kbd>Alt</kbd>+click clears. <b>Right-click</b> a region to occupy it — the
+          occupier's colour is striped over the owner's. Drag the sea to pan, scroll to zoom.</p>
+
+        <h4>Legend <span id="lg-count" class="tally"></span></h4>
         <div id="legend-list"></div>
         <p class="hint" id="lg-empty">Nothing painted yet — the legend fills itself as you colour.</p>
 
         <h4>Quick fills</h4>
         <div class="row">
-          <button class="btn sm grow" id="q-prov">Colour by province</button>
+          <button class="btn sm grow" id="q-prov">By province</button>
+          <button class="btn sm grow" id="q-region">By region</button>
+        </div>
+        <div class="row">
           <button class="btn sm grow" id="q-rand">Random</button>
+          <button class="btn sm grow" id="q-rest">Fill the rest</button>
         </div>
         <div class="row">
           <button class="btn sm grow" id="q-all">Fill everything</button>
@@ -90,11 +108,11 @@
 
       <!-- ---------- select ---------- -->
       <section class="panel" data-p="select">
-        <h4>Find a region</h4>
+        <h4>Find a place</h4>
         <input type="text" id="find" placeholder="Search regions, provinces or cities…" spellcheck="false">
         <div id="find-out" style="margin-top:6px"></div>
 
-        <h4>Selection <span id="sel-count" style="color:var(--ink-dim)"></span></h4>
+        <h4>Selection <span id="sel-count" class="tally"></span></h4>
         <div class="row">
           <button class="btn sm grow pri" id="sel-fill">Fill with active colour</button>
           <button class="btn sm" id="sel-erase" title="Clear the colour of the selected regions">Erase</button>
@@ -105,7 +123,12 @@
           <button class="btn sm grow" id="sel-none">None</button>
         </div>
         <p class="hint">In <b>Select</b> mode, click to add or remove whatever the
-          <b>Fill</b> switch covers. Double-click any region to grab its whole province.</p>
+          <b>Fill</b> switch covers. Double-click any row below to fly to it.</p>
+
+        <h4>Inspector</h4>
+        <div id="inspect" class="card">
+          <p class="hint" style="margin:0">Hover the map to inspect a region.</p>
+        </div>
 
         <h4>Provinces, regions &amp; subdivisions</h4>
         <div id="tree"></div>
@@ -115,6 +138,8 @@
       <section class="panel" data-p="style">
         <h4>Map style</h4>
         <div class="fld"><span>Theme</span><select id="s-theme"></select></div>
+
+        <h4>Names</h4>
         <div class="fld"><span>Region labels</span>
           <select id="s-labelmode">
             <option value="none">No names (as the reference map)</option>
@@ -128,7 +153,7 @@
             <option value="city">City names (MapChart style)</option>
           </select>
         </div>
-        <div class="fld"><span>Label size <i id="s-labelsize-v" style="font-style:normal;color:var(--gold)"></i></span>
+        <div class="fld"><span>Label size <i id="s-labelsize-v" class="val"></i></span>
           <input type="range" id="s-labelsize" min="2.5" max="12" step="0.2"></div>
 
         <h4>Layers</h4>
@@ -142,22 +167,25 @@
         <label class="ck"><input type="checkbox" id="s-citydistricts"> City districts (circular)</label>
         <label class="ck" id="row-rivers"><input type="checkbox" id="s-rivers"> Rivers</label>
         <label class="ck" id="row-lakes"><input type="checkbox" id="s-lakes"> Lakes &amp; inland seas</label>
-        <div class="fld"><span>City marker size <i id="s-cs-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="s-cs" min="0.5" max="3" step="0.1"></div>
-        <div class="fld"><span>Occupation stripe width <i id="s-stripe-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="s-stripe" min="0.8" max="6" step="0.2"></div>
-        <div class="fld" style="margin-top:10px"><span>Subregion border <i id="s-bw-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="s-bw" min="0" max="2" step="0.05"></div>
-        <div class="fld"><span>Map region border <i id="s-bbw-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="s-bbw" min="0" max="3" step="0.05"></div>
-        <div class="fld"><span>Province border <i id="s-pbw-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="s-pbw" min="0" max="5" step="0.1"></div>
 
-        <h4>Titles &amp; legend</h4>
+        <h4>Line weights</h4>
+        <div class="fld"><span>Subregion border <i id="s-bw-v" class="val"></i></span>
+          <input type="range" id="s-bw" min="0" max="2" step="0.05"></div>
+        <div class="fld"><span>Map region border <i id="s-bbw-v" class="val"></i></span>
+          <input type="range" id="s-bbw" min="0" max="3" step="0.05"></div>
+        <div class="fld"><span>Province border <i id="s-pbw-v" class="val"></i></span>
+          <input type="range" id="s-pbw" min="0" max="5" step="0.1"></div>
+        <div class="fld"><span>City marker size <i id="s-cs-v" class="val"></i></span>
+          <input type="range" id="s-cs" min="0.5" max="3" step="0.1"></div>
+        <div class="fld"><span>Occupation stripe width <i id="s-stripe-v" class="val"></i></span>
+          <input type="range" id="s-stripe" min="0.8" max="6" step="0.2"></div>
+
+        <h4>Title &amp; legend</h4>
         <div class="fld"><span>Title</span><input type="text" id="s-title"></div>
         <div class="fld"><span>Subtitle</span><input type="text" id="s-subtitle"></div>
         <div class="fld"><span>Legend heading</span><input type="text" id="s-legendtitle"></div>
         <label class="ck"><input type="checkbox" id="s-showlegend"> Show the legend on the map</label>
+        <label class="ck"><input type="checkbox" id="s-legendcounts"> Show how many regions each colour holds</label>
         <div class="fld" style="margin-top:8px"><span>Legend position</span>
           <select id="s-legendpos">
             <option value="tr">Top right</option>
@@ -167,90 +195,12 @@
             <option value="custom">Where I dragged it</option>
           </select>
         </div>
+        <div class="fld"><span>Legend columns <i id="s-legendcols-v" class="val"></i></span>
+          <input type="range" id="s-legendcols" min="1" max="4" step="1"></div>
         <p class="hint">You can also just drag the legend around the map.</p>
-      </section>
 
-      <!-- ---------- time ---------- -->
-      <section class="panel" data-p="time">
-        <h4>Built-in histories</h4>
-        <div class="fld"><select id="tl-scenario"></select></div>
-        <div class="row">
-          <button class="btn sm pri grow" id="tl-load">Load history</button>
-          <button class="btn sm" id="tl-append" title="Add these frames after the current ones">Append</button>
-        </div>
-        <p class="hint" id="tl-scnote"></p>
-
-        <h4>Keyframes <span id="kf-count" style="color:var(--ink-dim)"></span></h4>
-        <div id="tl-bar">
-          <button class="btn ico" id="tl-play" title="Play / pause (Space)">&#9654;</button>
-          <input type="range" id="tl-scrub" min="0" max="0" step="0.01" value="0">
-          <span class="lbl" id="tl-pos" style="font:11px var(--mono);color:var(--gold)"></span>
-        </div>
-        <div id="kf-list"></div>
-        <div class="row">
-          <button class="btn sm grow pri" id="kf-add">Capture frame</button>
-          <button class="btn sm grow" id="kf-update">Update</button>
-        </div>
-        <p class="hint">“Capture frame” stores the current colouring and legend as a moment in
-          history. Press play to watch the borders move.</p>
-
-        <h4>Frame details</h4>
-        <div class="fld"><span>Date</span><input type="text" id="kf-date" placeholder="2E 582"></div>
-        <div class="fld"><span>Title</span><input type="text" id="kf-title" placeholder="The Three Banners War"></div>
-        <div class="fld"><span>Note</span><textarea id="kf-note" rows="2"></textarea></div>
-
-        <h4>Playback</h4>
-        <div class="fld"><span>Seconds per frame <i id="tl-spf-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="tl-spf" min="0.3" max="6" step="0.1"></div>
-        <label class="ck"><input type="checkbox" id="tl-crossfade"> Cross-fade between frames</label>
-        <label class="ck"><input type="checkbox" id="tl-loop"> Loop</label>
-        <div class="row" style="margin-top:8px">
-          <button class="btn sm grow" id="tl-frames">Export every frame as PNG</button>
-        </div>
-      </section>
-
-      <!-- ---------- sim ---------- -->
-      <section class="panel" data-p="sim">
-        <h4>History simulator</h4>
-        <p class="hint">Factions expand turn by turn across the region adjacency graph —
-          199 subregions and their sea crossings. Every turn becomes a keyframe you can play back.</p>
-        <div class="fld"><span>Starting powers</span><select id="sm-preset"></select></div>
-        <div class="row">
-          <button class="btn sm grow" id="sm-loadpreset">Use these</button>
-          <button class="btn sm grow" id="sm-frompaint" title="One faction per legend colour">From my painting</button>
-        </div>
-
-        <h4>Factions <span id="sm-count" style="color:var(--ink-dim)"></span></h4>
-        <div id="sm-factions"></div>
-        <div class="row">
-          <button class="btn sm grow" id="sm-addfac">Add faction</button>
-          <button class="btn sm" id="sm-clearfac">Clear</button>
-        </div>
-
-        <h4>Rules</h4>
-        <div class="fld"><span>History seed</span><input type="text" id="sm-seed" value="tamriel"></div>
-        <div class="row">
-          <div class="fld grow"><span>Turns</span><input type="number" id="sm-steps" min="1" max="80" value="14"></div>
-          <div class="fld grow"><span>Attempts / turn</span><input type="number" id="sm-attempts" min="1" max="12" value="3"></div>
-        </div>
-        <div class="fld"><span>Expansion into empty land <i id="sm-exp-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="sm-exp" min="0.05" max="1" step="0.05" value="0.55"></div>
-        <div class="fld"><span>Aggression against rivals <i id="sm-agg-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="sm-agg" min="0" max="1" step="0.02" value="0.28"></div>
-        <div class="fld"><span>Sea-crossing difficulty <i id="sm-sea-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="sm-sea" min="0" max="1" step="0.02" value="0.22"></div>
-        <div class="fld"><span>Chance of revolt <i id="sm-rev-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="sm-rev" min="0" max="0.25" step="0.01" value="0.03"></div>
-        <div class="row">
-          <div class="fld grow"><span>Era</span>
-            <select id="sm-era"><option>1E</option><option selected>2E</option><option>3E</option><option>4E</option></select></div>
-          <div class="fld grow"><span>Start year</span><input type="number" id="sm-year" value="580"></div>
-          <div class="fld grow"><span>Years / turn</span><input type="number" id="sm-ypt" value="4" min="1"></div>
-        </div>
-        <div class="row">
-          <button class="btn pri grow" id="sm-run">Run simulation</button>
-          <button class="btn" id="sm-runplay">Run &amp; play</button>
-        </div>
+        <h4>Reset</h4>
+        <button class="btn sm" id="s-reset">Restore the default style</button>
       </section>
 
       <!-- ---------- file ---------- -->
@@ -279,7 +229,7 @@
             <option value="screen">Just what I can see</option>
           </select>
         </div>
-        <div class="fld"><span>PNG scale <i id="e-scale-v" style="font-style:normal;color:var(--gold)"></i></span>
+        <div class="fld"><span>PNG scale <i id="e-scale-v" class="val"></i></span>
           <input type="range" id="e-scale" min="1" max="6" step="0.5" value="2"></div>
 
         <h4>Import</h4>
@@ -294,15 +244,19 @@
         <h4>Keyboard</h4>
         <p class="hint">
           <kbd>B</kbd> paint · <kbd>V</kbd> select · <kbd>I</kbd> pick colour ·
-          <kbd>P</kbd> cycle fill level · <kbd>C</kbd> city mode · <kbd>Tab</kbd> hide panel · <kbd>F</kbd> immersive · <kbd>Space</kbd> play/pause ·
-          <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo ·
-          <kbd>0</kbd> fit · <kbd>+</kbd>/<kbd>-</kbd> zoom · <kbd>K</kbd> capture frame ·
-          <kbd>1</kbd>…<kbd>9</kbd> pick palette colour
+          <kbd>P</kbd> cycle fill level · <kbd>C</kbd> cities · <kbd>Tab</kbd> hide panel ·
+          <kbd>F</kbd> immersive · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo ·
+          <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo · <kbd>Ctrl</kbd>+<kbd>S</kbd> save ·
+          <kbd>0</kbd> fit · <kbd>+</kbd>/<kbd>-</kbd> zoom ·
+          <kbd>1</kbd>…<kbd>9</kbd> pick a palette colour
         </p>
+
         <h4>About</h4>
-        <p class="hint">The coastline and every map-region border are traced pixel by pixel
-          from the reference Tamriel map, so the outline matches 1:1. Each of those regions is
-          then split further, giving 199 subdivisions across the nine provinces.</p>
+        <p class="hint">The coastline and every map-region border are traced pixel by pixel from
+          the reference Tamriel map, so the outline matches it 1:1. Those
+          <b>89 regions</b> are then carved into <b>222 subregions</b> across the
+          <b>ten provinces</b>, with <b>69 city districts</b> on top — three tiers deeper than
+          the original.</p>
       </section>
     </div>
   </aside>
@@ -311,10 +265,9 @@
   <main id="stage">
     <div id="svgwrap"></div>
     <div id="tip"></div>
-    <div id="era">
-      <div class="t" id="era-t"></div>
-      <div class="d" id="era-d"></div>
-      <div class="n" id="era-n"></div>
+    <div id="titlecard">
+      <div class="t" id="tc-t"></div>
+      <div class="s" id="tc-s"></div>
     </div>
     <div id="maplegend"></div>
     <div id="zoomctl">
@@ -324,12 +277,6 @@
     </div>
     <button id="exit-immersive" title="Leave immersive view (F or Esc)">&times;</button>
     <div id="ctxmenu"></div>
-    <div id="playbar">
-      <button class="btn ico" id="pb-play">&#9654;</button>
-      <input type="range" id="pb-scrub" min="0" max="0" step="0.01" value="0">
-      <span class="lbl" id="pb-lbl"></span>
-      <button class="btn ico" id="pb-close" title="Leave playback">&times;</button>
-    </div>
   </main>
 </div>
 <div id="toast"></div>
@@ -337,8 +284,6 @@
 <script src="data/tamriel-map.js"></script>
 <script src="js/state.js"></script>
 <script src="js/mapview.js"></script>
-<script src="js/timeline.js"></script>
-<script src="js/sim.js"></script>
 <script src="js/exporter.js"></script>
 <script src="js/ui.js"></script>
 </body>

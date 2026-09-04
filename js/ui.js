@@ -13,7 +13,7 @@
     (subs['*'] || []).forEach(function (f) { f(name, arg); });
   };
 
-  var S = TM.S, ST = TM.state, V, TL, SIM, EX;
+  var S = TM.S, ST = TM.state, V, EX;
   function $(id) { return D.getElementById(id); }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -27,10 +27,11 @@
     toast._t = setTimeout(function () { t.classList.remove('on'); }, 2200);
   }
   function selCount() { return Object.keys(S.selection).length; }
+  function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
 
   /* ============================== INIT ================================== */
   function init() {
-    V = TM.view; TL = TM.timeline; SIM = TM.sim; EX = TM.exporter;
+    V = TM.view; EX = TM.exporter;
 
     V.build(W.TAMRIEL_MAP, $('stage'), $('tip'));
 
@@ -47,15 +48,14 @@
     setActiveColor(TM.PALETTES.Banners[0], true);
     bindLegendDrag();
 
-    TM.on('paint', function () { V.repaint(); renderLegend(); renderTree(); renderStatus(); });
+    TM.on('paint', function () {
+      V.repaint(); renderLegend(); renderTree(); renderStatus(); renderInspector();
+    });
     TM.on('doc', function () { syncStyleControls(); V.applyTheme(); renderAll(); });
     TM.on('selection', function () { V.repaint(); renderTree(); renderSel(); renderStatus(); });
     TM.on('history', renderStatus);
-    TM.on('hover', renderStatus);
+    TM.on('hover', function () { renderStatus(); renderInspector(); });
     TM.on('view', renderStatus);
-    TM.on('timeline', function () { renderKeyframes(); renderEra(); renderLegend(); });
-    TM.on('playhead', function () { renderScrubs(); renderEra(); renderLegend(); });
-    TM.on('playstate', function () { renderPlayButtons(); renderScrubs(); });
     TM.on('contextmenu', openMenu);
     D.addEventListener('pointerdown', function (e) {
       var m = $('ctxmenu');
@@ -80,10 +80,6 @@
     Object.keys(TM.THEMES).forEach(function (k) {
       th.appendChild(opt(k, TM.THEMES[k].title || k));
     });
-    var sc = $('tl-scenario');
-    TL.scenarios.forEach(function (s) { sc.appendChild(opt(s.id, s.name)); });
-    var pr = $('sm-preset');
-    Object.keys(SIM.presets).forEach(function (k) { pr.appendChild(opt(k, k)); });
     var ps = $('palset');
     Object.keys(TM.PALETTES).forEach(function (k) {
       var b = D.createElement('button');
@@ -96,29 +92,55 @@
 
   /* ================================ RENDER ============================== */
   function renderAll() {
-    renderSwatches(); renderLegend(); renderTree(); renderSel();
-    renderKeyframes(); renderFactions(); renderSlots();
-    syncStyleControls(); renderEra(); renderStatus(); renderScrubs();
+    renderSwatches(); renderLegend(); renderTree(); renderSel(); renderSlots();
+    syncStyleControls(); renderTitleCard(); renderStatus(); renderInspector();
     $('f-name').value = S.doc.name;
   }
 
   /* ---------- palette ---------- */
+  function swatchEl(c, onPick, onForget) {
+    var d = D.createElement('div');
+    d.className = 'sw' + (c === S.activeColor ? ' on' : '');
+    d.style.background = c; d.title = c;
+    d.onclick = function () { onPick(c); };
+    if (onForget) {
+      d.oncontextmenu = function (e) { e.preventDefault(); onForget(c); };
+      d.title = c + ' — right-click to forget';
+    }
+    return d;
+  }
   function renderSwatches() {
     var box = $('swatches'); box.innerHTML = '';
     (TM.PALETTES[S.activePalette] || []).forEach(function (c) {
-      var d = D.createElement('div');
-      d.className = 'sw' + (c === S.activeColor ? ' on' : '');
-      d.style.background = c; d.title = c;
-      d.onclick = function () { setActiveColor(c); };
-      box.appendChild(d);
+      box.appendChild(swatchEl(c, function () { setActiveColor(c); }));
     });
     Array.prototype.forEach.call($('palset').children, function (b) {
       b.classList.toggle('on', b.dataset.pal === S.activePalette);
+    });
+    renderRecent(); renderMine();
+  }
+  function renderRecent() {
+    var host = $('recent'), wrap = $('recent-wrap');
+    host.innerHTML = '';
+    wrap.hidden = !S.recent.length;
+    S.recent.forEach(function (c) {
+      host.appendChild(swatchEl(c, function () { setActiveColor(c); }));
+    });
+  }
+  function renderMine() {
+    var host = $('mine'), wrap = $('mine-wrap');
+    var mine = ST.listSwatches();
+    host.innerHTML = '';
+    wrap.hidden = !mine.length;
+    mine.forEach(function (c) {
+      host.appendChild(swatchEl(c, function () { setActiveColor(c); },
+        function () { ST.removeSwatch(c); renderMine(); }));
     });
   }
   function setActiveColor(c, quiet) {
     c = ST.normHex(c) || '#8c2f2a';
     S.activeColor = c;
+    ST.noteColor(c);
     $('curchip').style.background = c;
     $('pk-color').value = c;
     $('pk-hex').value = c;
@@ -149,20 +171,33 @@
       nm.oninput = function () { g.label = nm.value; S.dirty = true; renderMapLegend(); };
       var n = D.createElement('span');
       n.className = 'n'; n.textContent = ST.countColor(g.color);
+      var mv = D.createElement('span');
+      mv.className = 'mv';
+      mv.innerHTML = '<span class="up" title="Move up">&#9650;</span>' +
+                     '<span class="dn" title="Move down">&#9660;</span>';
+      mv.onclick = function (e) { e.stopPropagation(); };
+      mv.querySelector('.up').onclick = function (e) { e.stopPropagation(); moveGroup(i, -1); };
+      mv.querySelector('.dn').onclick = function (e) { e.stopPropagation(); moveGroup(i, 1); };
       var x = D.createElement('span');
       x.className = 'x'; x.innerHTML = '&times;'; x.title = 'Clear every region in this group';
       x.onclick = function (e) {
         e.stopPropagation();
         var ids = idsWithColor(g.color);
         ST.setColor(ids, null);
-        toast('Cleared ' + ids.length + ' region' + (ids.length === 1 ? '' : 's'));
+        toast('Cleared ' + plural(ids.length, 'region'));
       };
-      row.appendChild(chip); row.appendChild(nm); row.appendChild(n); row.appendChild(x);
+      [chip, nm, n, mv, x].forEach(function (el) { row.appendChild(el); });
       row.onclick = function () { setActiveColor(g.color); selectColor(g.color); };
       row.title = 'Click to make this the active colour and select its regions';
       list.appendChild(row);
     });
     renderMapLegend();
+  }
+  function moveGroup(i, d) {
+    var gs = S.doc.groups, j = i + d;
+    if (j < 0 || j >= gs.length) return;
+    var t = gs[i]; gs[i] = gs[j]; gs[j] = t;
+    S.dirty = true; renderLegend();
   }
   function idsWithColor(c) {
     var out = [];
@@ -179,6 +214,8 @@
     ST.pushUndo();
     var g = ST.groupFor(from);
     idsWithColor(from).forEach(function (id) { S.doc.colors[id] = to; });
+    for (var o in S.doc.occupied) if (S.doc.occupied[o] === from) S.doc.occupied[o] = to;
+    for (var c in S.doc.cityColors) if (S.doc.cityColors[c] === from) S.doc.cityColors[c] = to;
     if (g) {
       var exist = S.doc.groups.filter(function (x) { return x.color === to && x !== g; })[0];
       if (exist) { S.doc.groups = S.doc.groups.filter(function (x) { return x !== g; }); }
@@ -192,16 +229,17 @@
     tl: [0.015, 0.02], tr: [0.985, 0.02], bl: [0.015, 0.98], br: [0.985, 0.98]
   };
   function renderMapLegend() {
-    var box = $('maplegend'), st = S.doc.style;
-    var kf = (S.playing || S.scrubbing || S.activeKf >= 0) ? TL.frameAt(S.playhead) : null;
-    var gs = (kf && kf.groups && kf.groups.length) ? kf.groups : S.doc.groups;
+    var box = $('maplegend'), st = S.doc.style, gs = S.doc.groups;
     if (!st.showLegend || !gs.length) { box.style.display = 'none'; return; }
     box.style.display = '';
+    var cols = Math.max(1, Math.min(4, st.legendCols || 1));
     box.innerHTML = '<div class="lt">' + esc(st.legendTitle || 'Legend') + '</div>' +
+      '<div class="cols" style="grid-template-columns:repeat(' + cols + ',auto)">' +
       gs.map(function (g) {
         return '<div class="li"><i style="background:' + esc(g.color) + '"></i>' +
-               esc(g.label || g.color) + '</div>';
-      }).join('');
+               esc(g.label || g.color) +
+               (st.legendCounts ? '<u>' + ST.countColor(g.color) + '</u>' : '') + '</div>';
+      }).join('') + '</div>';
     placeLegend();
   }
   function placeLegend() {
@@ -240,6 +278,7 @@
         cy > sh / 2 ? (t + box.offsetHeight) / sh : t / sh
       ];
       S.doc.style.legendAnchor = 'custom';
+      $('s-legendpos').value = 'custom';
       S.dirty = true;
     });
     function stop(e) { if (drag) { drag = null; box.releasePointerCapture(e.pointerId); } }
@@ -248,16 +287,53 @@
     W.addEventListener('resize', placeLegend);
   }
 
-  /* ---------- era overlay ---------- */
-  function renderEra() {
-    var st = S.doc.style;
-    var f = TL.frames();
-    var kf = f.length ? TL.frameAt(S.playhead) : null;
-    $('era-t').textContent = st.title || '';
-    $('era-d').textContent = kf ? kf.date : (st.subtitle || '');
-    $('era-n').textContent = kf ? [kf.title, kf.note].filter(Boolean).join(' — ')
-                                : (kf ? '' : '');
-    $('playbar').classList.toggle('on', f.length > 1);
+  /* ---------- title card on the map ---------- */
+  function renderTitleCard() {
+    var st = S.doc.style, card = $('titlecard');
+    $('tc-t').textContent = st.title || '';
+    $('tc-s').textContent = st.subtitle || '';
+    card.classList.toggle('bare', !(st.title || st.subtitle));
+  }
+
+  /* ---------- inspector ---------- */
+  function renderInspector() {
+    var host = $('inspect');
+    var id = S.hover || Object.keys(S.selection)[0];
+    var r = id && S.regions[id];
+    if (!r) {
+      host.innerHTML = '<p class="hint" style="margin:0">Hover the map to inspect a region.</p>';
+      return;
+    }
+    var col = S.doc.colors[id], g = ST.groupFor(col);
+    var occ = S.doc.occupied[id], og = ST.groupFor(occ);
+    var siblings = (S.byBase[r.baseId] || []).length;
+    var nbNames = (r.nb || []).map(function (n) {
+      return (S.regions[n] || {}).base || (S.regions[n] || {}).name;
+    }).filter(function (v, i, a) { return v && v !== r.base && a.indexOf(v) === i; });
+
+    var rows = [
+      ['Province', esc(r.province)],
+      ['Region', esc(r.base || r.name)],
+      ['Subregion', esc(r.name)],
+      ['Siblings', siblings + ' in this region'],
+      ['Colour', col ? '<span class="mono">' + esc(col) + '</span>' +
+                       (g ? ' &middot; ' + esc(g.label) : '') : '—']
+    ];
+    if (r.city) rows.splice(3, 0, ['City', esc(r.city)]);
+    if (occ) rows.push(['Occupied by', '<span class="mono">' + esc(occ) + '</span>' +
+                                       (og ? ' &middot; ' + esc(og.label) : '')]);
+
+    host.innerHTML =
+      '<div class="ih"><i style="background:' + (col || 'transparent') +
+        ';border-style:' + (col ? 'solid' : 'dashed') + '"></i>' +
+        '<b>' + esc(S.level === 'province' ? r.province
+                    : (S.level === 'subregion' ? r.name : (r.base || r.name))) + '</b></div>' +
+      '<dl>' + rows.map(function (p) {
+        return '<dt>' + p[0] + '</dt><dd>' + p[1] + '</dd>';
+      }).join('') + '</dl>' +
+      (nbNames.length ? '<div class="nb"><dt style="margin-bottom:4px">Borders</dt>' +
+        nbNames.slice(0, 10).map(function (n) { return '<em>' + esc(n) + '</em>'; }).join('') +
+        (nbNames.length > 10 ? ' +' + (nbNames.length - 10) + ' more' : '') + '</div>' : '');
   }
 
   /* ---------- tree ---------- */
@@ -471,85 +547,6 @@
     });
   }
 
-  /* ---------- keyframes ---------- */
-  function renderKeyframes() {
-    var f = TL.frames(), host = $('kf-list');
-    $('kf-count').textContent = f.length ? '(' + f.length + ')' : '';
-    host.innerHTML = '';
-    f.forEach(function (kf, i) {
-      var row = D.createElement('div');
-      row.className = 'kf' + (i === S.activeKf ? ' on' : '');
-      row.innerHTML = '<span class="i">' + (i + 1) + '</span>' +
-        '<span class="tx"><b>' + esc(kf.title || kf.date) + '</b><i>' + esc(kf.date) + '</i></span>' +
-        '<span class="mv"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span>' +
-        '<span class="x">&times;</span>';
-      row.onclick = function () { TL.load(i); renderKfFields(); };
-      row.querySelector('.up').onclick = function (e) { e.stopPropagation(); TL.move(i, -1); };
-      row.querySelector('.dn').onclick = function (e) { e.stopPropagation(); TL.move(i, 1); };
-      row.querySelector('.x').onclick = function (e) { e.stopPropagation(); TL.remove(i); };
-      host.appendChild(row);
-    });
-    renderScrubs(); renderKfFields();
-  }
-  function renderKfFields() {
-    var kf = TL.frames()[S.activeKf];
-    $('kf-date').value = kf ? kf.date : '';
-    $('kf-title').value = kf ? kf.title : '';
-    $('kf-note').value = kf ? kf.note : '';
-    ['kf-date', 'kf-title', 'kf-note'].forEach(function (id) { $(id).disabled = !kf; });
-  }
-  function renderScrubs() {
-    var n = Math.max(0, TL.frames().length - 1);
-    [['tl-scrub', 'tl-pos'], ['pb-scrub', 'pb-lbl']].forEach(function (p) {
-      var s = $(p[0]); s.max = n; s.value = S.playhead;
-      s.disabled = n === 0;
-      var kf = TL.frameAt(S.playhead);
-      $(p[1]).textContent = kf ? kf.date : '—';
-    });
-  }
-  function renderPlayButtons() {
-    var glyph = S.playing ? '&#10073;&#10073;' : '&#9654;';
-    $('tl-play').innerHTML = glyph;
-    $('pb-play').innerHTML = glyph;
-  }
-
-  /* ---------- factions ---------- */
-  var facs = [];
-  function renderFactions() {
-    var host = $('sm-factions'); host.innerHTML = '';
-    $('sm-count').textContent = facs.length ? '(' + facs.length + ')' : '';
-    facs.forEach(function (f, i) {
-      var box = D.createElement('div');
-      box.className = 'fac';
-      var top = D.createElement('div'); top.className = 'top';
-      var col = D.createElement('input'); col.type = 'color'; col.value = f.color;
-      col.oninput = function () { f.color = col.value; };
-      var nm = D.createElement('input'); nm.type = 'text'; nm.value = f.name;
-      nm.oninput = function () { f.name = nm.value; };
-      var setb = D.createElement('button');
-      setb.className = 'btn sm'; setb.textContent = 'Set';
-      setb.title = 'Use the current selection as this faction\'s starting regions';
-      setb.onclick = function () {
-        f.seeds = Object.keys(S.selection);
-        if (!f.seeds.length) { toast('Select some regions first'); return; }
-        renderFactions();
-      };
-      var del = D.createElement('button');
-      del.className = 'btn sm danger'; del.innerHTML = '&times;';
-      del.onclick = function () { facs.splice(i, 1); renderFactions(); };
-      [col, nm, setb, del].forEach(function (e) { top.appendChild(e); });
-      var seeds = D.createElement('div');
-      seeds.className = 'seeds';
-      seeds.innerHTML = f.seeds.length
-        ? f.seeds.slice(0, 12).map(function (id) {
-            return '<em>' + esc((S.regions[id] || {}).name || id) + '</em>';
-          }).join('') + (f.seeds.length > 12 ? ' +' + (f.seeds.length - 12) + ' more' : '')
-        : '<span style="opacity:.7">no starting regions — select some and press Set</span>';
-      box.appendChild(top); box.appendChild(seeds);
-      host.appendChild(box);
-    });
-  }
-
   /* ---------- slots ---------- */
   function renderSlots() {
     var host = $('f-slots'); host.innerHTML = '';
@@ -588,11 +585,19 @@
       }
       return n;
     }
-    if (S.level === 'region') {
+    if (S.level === 'province') {
+      var np = 0;
+      S.map.provinces.forEach(function (p) {
+        if (p.regions.some(function (x) { return S.doc.colors[x]; })) np++;
+      });
+      bits.push(np + '/' + S.map.provinces.length + ' provinces painted');
+    } else if (S.level === 'region') {
       bits.push(countGroups(S.byBase) + '/' + (S.map.baseRegions || []).length + ' regions painted');
     } else {
       bits.push(painted + '/' + S.map.regions.length + ' subregions painted');
     }
+    var nocc = Object.keys(S.doc.occupied).length;
+    if (nocc) bits.push(nocc + ' occupied');
     if (cityMode()) {
       bits.push(Object.keys(S.doc.cityColors).length + '/' +
                 (S.map.cityDistricts || []).length + ' cities');
@@ -636,10 +641,10 @@
     $('s-subtitle').value = st.subtitle || '';
     $('s-legendtitle').value = st.legendTitle || '';
     $('s-showlegend').checked = st.showLegend !== false;
+    $('s-legendcounts').checked = !!st.legendCounts;
     $('s-legendpos').value = st.legendAnchor || 'tr';
-    $('tl-spf').value = st.secPerFrame || 1.6; $('tl-spf-v').textContent = (st.secPerFrame || 1.6) + 's';
-    $('tl-crossfade').checked = st.crossfade !== false;
-    $('tl-loop').checked = !!st.loopPlay;
+    $('s-legendcols').value = st.legendCols || 1;
+    $('s-legendcols-v').textContent = st.legendCols || 1;
     $('e-view').value = st.exportView || 'fit';
     $('e-scale').value = st.exportScale || 2;
     $('e-scale-v').textContent = '×' + (st.exportScale || 2);
@@ -647,7 +652,7 @@
   function styleChanged(rerender) {
     S.dirty = true;
     if (rerender !== false) V.applyTheme();
-    renderMapLegend(); renderEra(); renderStatus();
+    renderMapLegend(); renderTitleCard(); renderStatus();
   }
 
   /* ---------- right-click menu ---------- */
@@ -662,7 +667,7 @@
     var scope = info.id ? TM.idsFor(info.id, {}) : [];
     var provIds = r ? S.byProvince[r.province] : [];
     var title = r ? (S.level === 'province' ? r.province
-                     : (S.level === 'parcel' ? r.name : (r.base || r.name)))
+                     : (S.level === 'subregion' ? r.name : (r.base || r.name)))
                   : (S.map.cityDistricts || []).filter(function (c) {
                       return c.id === info.city; }).map(function (c) {
                       return c.name; })[0];
@@ -673,6 +678,10 @@
     }
     if (r) {
       items.push(['Fill with active colour', function () { ST.setColor(scope, S.activeColor); }]);
+      items.push(['Fill the whole province', function () {
+        ST.setColor(provIds.slice(), S.activeColor);
+      }]);
+      items.push(['-']);
       items.push(['Occupy with active colour', function () {
         ST.setOccupied(scope, S.activeColor);
         toast('Occupied ' + scope.length + ' — striped over the owner');
@@ -683,10 +692,17 @@
       }]);
       items.push(['Liberate (clear occupation)', function () { ST.setOccupied(scope, null); }]);
       items.push(['Liberate the province', function () { ST.setOccupied(provIds.slice(), null); }]);
+      items.push(['-']);
+      items.push(['Select this', function () {
+        scope.forEach(function (id) { S.selection[id] = true; });
+        TM.emit('selection');
+      }]);
+      items.push(['Zoom here', function () { V.zoomToRegion(info.id); }]);
       items.push(['Clear colour', function () { ST.setColor(scope, null); }]);
     }
     m.innerHTML = '<div class="ct">' + esc(title || '') + '</div>';
     items.forEach(function (it) {
+      if (it[0] === '-') { m.appendChild(D.createElement('hr')); return; }
       var b = D.createElement('button');
       b.textContent = it[0];
       b.onclick = function () { it[1](); closeMenu(); };
@@ -733,7 +749,7 @@
     $('s-provborders').checked = st.showProvBorders;
     V.applyTheme();
     if (V.clearHover) V.clearHover();
-    if (!quiet) renderStatus();
+    if (!quiet) { renderStatus(); renderInspector(); }
   }
 
   function cityMode() { return !!S.doc.style.showCityDistricts; }
@@ -777,6 +793,10 @@
       var g = ST.ensureGroup(S.activeColor, $('pk-label').value);
       if (g) { g.label = $('pk-label').value || g.label; S.dirty = true; renderLegend(); }
     };
+    $('pk-save').onclick = function () {
+      if (ST.addSwatch(S.activeColor)) { renderMine(); toast('Saved ' + S.activeColor); }
+      else toast('Already in My colours');
+    };
     $('q-prov').onclick = function () {
       ST.pushUndo();
       var pal = TM.PALETTES.Provinces;
@@ -785,6 +805,16 @@
         p.regions.forEach(function (id) { S.doc.colors[id] = c; });
         ST.ensureGroup(c, p.name);
       });
+      ST.pruneGroups(); TM.emit('paint');
+    };
+    $('q-region').onclick = function () {
+      ST.pushUndo();
+      var pal = TM.PALETTES[S.activePalette] || TM.PALETTES.Banners;
+      (S.map.baseRegions || []).forEach(function (b, i) {
+        var c = pal[i % pal.length];
+        (S.byBase[b.id] || []).forEach(function (id) { S.doc.colors[id] = c; });
+      });
+      pal.forEach(function (c, i) { ST.ensureGroup(c, 'Group ' + (i + 1)); });
       ST.pruneGroups(); TM.emit('paint');
     };
     $('q-rand').onclick = function () {
@@ -796,11 +826,20 @@
       pal.forEach(function (c, i) { ST.ensureGroup(c, 'Group ' + (i + 1)); });
       ST.pruneGroups(); TM.emit('paint');
     };
+    $('q-rest').onclick = function () {
+      var ids = S.map.regions.filter(function (r) { return !S.doc.colors[r.id]; })
+                             .map(function (r) { return r.id; });
+      if (!ids.length) { toast('Every region already has a colour'); return; }
+      ST.setColor(ids, S.activeColor);
+      toast('Filled ' + plural(ids.length, 'unpainted region'));
+    };
     $('q-all').onclick = function () {
       ST.setColor(S.map.regions.map(function (r) { return r.id; }), S.activeColor);
     };
     $('q-clear').onclick = function () {
-      ST.pushUndo(); S.doc.colors = {}; S.doc.groups = []; TM.emit('paint');
+      ST.pushUndo();
+      S.doc.colors = {}; S.doc.occupied = {}; S.doc.cityColors = {}; S.doc.groups = [];
+      TM.emit('paint');
     };
 
     /* select panel */
@@ -809,7 +848,7 @@
       var ids = Object.keys(S.selection);
       if (!ids.length) { toast('Nothing selected'); return; }
       ST.setColor(ids, S.activeColor);
-      toast('Filled ' + ids.length + ' region' + (ids.length === 1 ? '' : 's'));
+      toast('Filled ' + plural(ids.length, 'region'));
     };
     $('sel-erase').onclick = function () {
       var ids = Object.keys(S.selection);
@@ -873,81 +912,26 @@
     $('s-subtitle').oninput = function () { S.doc.style.subtitle = $('s-subtitle').value; styleChanged(false); };
     $('s-legendtitle').oninput = function () { S.doc.style.legendTitle = $('s-legendtitle').value; styleChanged(false); };
     $('s-showlegend').onchange = function () { S.doc.style.showLegend = $('s-showlegend').checked; styleChanged(false); };
+    $('s-legendcounts').onchange = function () { S.doc.style.legendCounts = $('s-legendcounts').checked; styleChanged(false); };
+    $('s-legendcols').oninput = function () {
+      S.doc.style.legendCols = parseInt($('s-legendcols').value, 10) || 1;
+      $('s-legendcols-v').textContent = S.doc.style.legendCols;
+      styleChanged(false);
+    };
     $('s-legendpos').onchange = function () {
       var v = $('s-legendpos').value;
       S.doc.style.legendAnchor = v;
       if (LEGEND_CORNERS[v]) S.doc.style.legendAt = LEGEND_CORNERS[v].slice();
       styleChanged(false);
     };
-
-    /* timeline panel */
-    $('tl-scenario').onchange = showScNote;
-    showScNote();
-    $('tl-load').onclick = function () {
-      TL.loadScenario($('tl-scenario').value, false);
-      toast('Loaded ' + TL.frames().length + ' frames');
-      setTab('time');
+    $('s-reset').onclick = function () {
+      var keep = S.doc.style.title, keep2 = S.doc.style.subtitle;
+      S.doc.style = ST.defaultStyle();
+      S.doc.style.title = keep; S.doc.style.subtitle = keep2;
+      syncStyleControls(); setLevel(S.level, true); setCityMode(false, true);
+      styleChanged(); V.repaint();
+      toast('Style reset');
     };
-    $('tl-append').onclick = function () {
-      TL.loadScenario($('tl-scenario').value, true);
-      toast('Appended — ' + TL.frames().length + ' frames');
-    };
-    $('kf-add').onclick = function () {
-      TL.add(); toast('Captured frame ' + TL.frames().length);
-    };
-    $('kf-update').onclick = function () {
-      if (S.activeKf < 0) { toast('Pick a frame first'); return; }
-      TL.update(S.activeKf); toast('Frame updated');
-    };
-    ['kf-date', 'kf-title', 'kf-note'].forEach(function (id) {
-      $(id).oninput = function () {
-        var kf = TL.frames()[S.activeKf]; if (!kf) return;
-        kf[id.slice(3)] = $(id).value;
-        S.dirty = true; renderKeyframes(); renderEra();
-      };
-    });
-    $('tl-play').onclick = togglePlay;
-    $('pb-play').onclick = togglePlay;
-    $('pb-close').onclick = function () { TL.stop(); S.activeKf = -1; renderEra(); renderLegend(); };
-    $('tl-scrub').oninput = function () { TL.pause(); TL.seek(parseFloat($('tl-scrub').value)); };
-    $('pb-scrub').oninput = function () { TL.pause(); TL.seek(parseFloat($('pb-scrub').value)); };
-    $('tl-spf').oninput = function () {
-      S.doc.style.secPerFrame = parseFloat($('tl-spf').value);
-      $('tl-spf-v').textContent = S.doc.style.secPerFrame + 's'; S.dirty = true;
-    };
-    $('tl-crossfade').onchange = function () { S.doc.style.crossfade = $('tl-crossfade').checked; S.dirty = true; };
-    $('tl-loop').onchange = function () { S.doc.style.loopPlay = $('tl-loop').checked; S.dirty = true; };
-    $('tl-frames').onclick = function () {
-      if (!TL.frames().length) { toast('No frames to export'); return; }
-      toast('Exporting ' + TL.frames().length + ' PNGs…');
-      EX.exportFrames(1.5).then(function (n) { toast('Exported ' + n + ' frames'); });
-    };
-
-    /* sim panel */
-    $('sm-loadpreset').onclick = function () {
-      facs = SIM.expandPreset($('sm-preset').value);
-      renderFactions();
-      toast(facs.length + ' factions ready');
-    };
-    $('sm-frompaint').onclick = function () {
-      facs = SIM.factionsFromPainting();
-      if (!facs.length) { toast('Paint something first'); return; }
-      renderFactions();
-      toast(facs.length + ' factions taken from the painting');
-    };
-    $('sm-addfac').onclick = function () {
-      var f = SIM.newFaction(facs.length);
-      f.seeds = Object.keys(S.selection);
-      facs.push(f); renderFactions();
-    };
-    $('sm-clearfac').onclick = function () { facs = []; renderFactions(); };
-    [['sm-exp', 'sm-exp-v'], ['sm-agg', 'sm-agg-v'], ['sm-sea', 'sm-sea-v'],
-     ['sm-rev', 'sm-rev-v']].forEach(function (p) {
-      var upd = function () { $(p[1]).textContent = Math.round($(p[0]).value * 100) + '%'; };
-      $(p[0]).oninput = upd; upd();
-    });
-    $('sm-run').onclick = function () { runSim(false); };
-    $('sm-runplay').onclick = function () { runSim(true); };
 
     /* file panel */
     $('f-name').oninput = function () { S.doc.name = $('f-name').value; S.dirty = true; };
@@ -982,7 +966,7 @@
       var app = D.getElementById('app');
       app.classList.toggle('immersive', on);
       $('b-immersive').classList.toggle('on', on);
-      setTimeout(function () { V.resetView(); }, 210);
+      setTimeout(function () { V.resetView(); }, 230);
     }
     $('b-immersive').onclick = function () {
       setImmersive(!D.getElementById('app').classList.contains('immersive'));
@@ -995,7 +979,7 @@
       var on = app.classList.toggle('collapsed');
       $('side-toggle').innerHTML = on ? '&#9656;' : '&#9666;';
       $('side-toggle').title = on ? 'Show the panel (Tab)' : 'Hide the panel (Tab)';
-      setTimeout(function () { TM.emit('view'); V.resetView(); }, 200);
+      setTimeout(function () { TM.emit('view'); V.resetView(); }, 220);
     };
 
     /* zoom controls */
@@ -1007,43 +991,11 @@
     D.addEventListener('keydown', onKey);
   }
 
-  function showScNote() {
-    var s = TL.scenarios.filter(function (x) { return x.id === $('tl-scenario').value; })[0];
-    $('tl-scnote').textContent = s ? s.note + ' (' + s.frames.length + ' frames)' : '';
-  }
-  function togglePlay() {
-    if (S.playing) TL.pause();
-    else if (TL.frames().length > 1) TL.play();
-    else toast('Capture at least two frames first');
-  }
   function doPNG() {
     toast('Rendering PNG…');
     EX.exportPNG(S.doc.style.exportScale || 2)
       .then(function () { toast('PNG exported'); })
       .catch(function (e) { toast('PNG failed: ' + e); });
-  }
-  function runSim(thenPlay) {
-    if (!facs.length || !facs.some(function (f) { return f.seeds.length; })) {
-      toast('Give at least one faction some starting regions');
-      return;
-    }
-    var cfg = {
-      seed: $('sm-seed').value || 'tamriel',
-      steps: Math.max(1, parseInt($('sm-steps').value, 10) || 12),
-      attempts: Math.max(1, parseInt($('sm-attempts').value, 10) || 3),
-      expansion: parseFloat($('sm-exp').value),
-      aggression: parseFloat($('sm-agg').value),
-      seaChance: parseFloat($('sm-sea').value),
-      revolt: parseFloat($('sm-rev').value),
-      startEra: $('sm-era').value,
-      startYear: parseInt($('sm-year').value, 10) || 0,
-      yearsPerStep: Math.max(1, parseInt($('sm-ypt').value, 10) || 1)
-    };
-    var frames = SIM.run(cfg, JSON.parse(JSON.stringify(facs)));
-    if (!frames) { toast('Simulation produced nothing'); return; }
-    toast('Simulated ' + frames.length + ' turns');
-    setTab('time');
-    if (thenPlay) { S.playhead = 0; TL.play(); }
   }
 
   function onKey(e) {
@@ -1078,8 +1030,6 @@
       case 'f':
         TM.setImmersive(!D.getElementById('app').classList.contains('immersive'));
         break;
-      case 'k': TL.add(); toast('Captured frame ' + TL.frames().length); break;
-      case ' ': e.preventDefault(); togglePlay(); break;
       case '0': V.resetView(); break;
       case '+': case '=': V.zoomBy(1 / 1.35); break;
       case '-': V.zoomBy(1.35); break;

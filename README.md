@@ -9,9 +9,9 @@ toolbar:
 
 | Level | What one click fills |
 |---|---|
-| **Province** | one of the nine provinces |
+| **Province** | one of the ten provinces |
 | **Region** | one of the reference map's own 89 regions — the default |
-| **Subregion** | one of the 199 finer subdivisions |
+| **Subregion** | one of the 222 finer subdivisions |
 
 At Province level the map looks exactly like the original. The map carries no names, like the
 reference — though **capital cities**, **other cities** and **city names** are all
@@ -136,9 +136,10 @@ city-state name.
 ## What's in it
 
 **Colouring.** Click to fill whatever the **Fill** switch covers, drag to paint
-several, <kbd>Shift</kbd>+click for a whole province, <kbd>Alt</kbd>+click to clear. Seven
-palettes plus any custom colour. The legend builds itself as you paint — rename a
-group, recolour every region in it at once, or click it to reselect those regions.
+several, <kbd>Shift</kbd>+click for a whole province, <kbd>Alt</kbd>+click to clear.
+Ten palettes plus any custom colour, a strip of recently used colours, and a
+star to keep one in your own swatch library. Quick fills colour the map by
+province, by region, at random, or just the parts you have not reached yet.
 
 **Selecting.** Search returns map regions, not every subdivision, across region,
 province and city names, with lore aliases
@@ -149,38 +150,28 @@ the right set. Or work down the province tree. Invert, select-all, fill-selectio
 window; <kbd>Tab</kbd> just folds the side panel away.
 
 **Styling.** Five map themes (MapChart — sampled off the reference — plus Parchment,
-Slate, Ashland, Ink), the three border widths, optional names and city markers,
-title/subtitle, and a legend you can drag anywhere.
+Slate, Ashland, Ink), the three border widths, city marker size, stripe width,
+optional names and city markers, a title card on the map, and a legend you can drag
+anywhere. One button restores the whole default style.
 
-**Time.** Capture the current colouring as a keyframe with an Elder Scrolls date,
-then scrub or play the timeline — colours cross-fade between frames, so borders
-appear to move. Three histories are built in:
+**Inspecting.** The Select panel carries an inspector: hover or select anything and
+it names the province, the map region, the subregion, how many siblings that region
+has, the colour and its legend group, who is occupying it, and every region it
+borders.
 
-| History | Frames | Covers |
-|---|---|---|
-| Ages of Empire | 9 | Alessian rebellion → First Empire of the Nords → Alessian Order → Reman's Second Empire → Akaviri Potentate → Three Banners War → Tiber Septim → Third Empire → after the Great War |
-| The Three Banners War | 6 | 2E 582, the front line moving across Cyrodiil season by season |
-| The Great War | 6 | 4E 170–180, the Dominion invasion, the Red Ring, the Concordat, Hammerfell's secession |
-
-Scenarios name a map region and every one of its subdivisions follows, so they keep
-working however finely the map is split.
-
-**Simulation.** A growth simulator runs factions over the subregion adjacency graph.
-Give each faction a colour and a starting territory — or use a preset (Three
-Alliances, Nine Provinces, Capitals Only), or seed one faction per colour already on
-your map — then set expansion, aggression, sea-crossing difficulty and revolt chance
-and run it. Each turn becomes a keyframe you can play back. Runs are seeded, so the
-same seed always produces the same history.
+**Legend.** Entries build themselves as you paint. Rename one, recolour every region
+in it at once, reorder them, click one to reselect its regions, or drop it and clear
+them. On the map the legend can carry per-colour counts, run in up to four columns,
+sit in any corner, or go wherever you drag it.
 
 **Saving and exporting.** Auto-saves to the browser; named save slots; export as PNG
-(up to ×6), standalone SVG, a `.json` map file you can re-open, a CSV of the
-painting, or every timeline frame as its own PNG.
+(up to ×6), standalone SVG, a `.json` map file you can re-open, or a CSV of the
+painting. Recently used colours and a saved swatch library persist across sessions.
 
 ## Keyboard
 
 <kbd>B</kbd> paint · <kbd>V</kbd> select · <kbd>I</kbd> pick colour ·
 <kbd>P</kbd> cycle fill level · <kbd>1</kbd>–<kbd>9</kbd> palette colour ·
-<kbd>K</kbd> capture frame · <kbd>Space</kbd> play/pause ·
 <kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> undo/redo ·
 <kbd>Ctrl</kbd>+<kbd>S</kbd> save · <kbd>0</kbd> fit · <kbd>+</kbd>/<kbd>−</kbd> zoom ·
 <kbd>C</kbd> city mode · <kbd>F</kbd> immersive · <kbd>Esc</kbd> clear selection
@@ -193,8 +184,6 @@ tamriel-mapchart.html    the same app as one portable file
 css/app.css
 js/state.js              palettes, themes, document state, undo, storage
 js/mapview.js            SVG build, theming, pan/zoom, hit-testing, labels
-js/timeline.js           keyframes, cross-fade playback, the built-in histories
-js/sim.js                the faction growth simulator
 js/exporter.js           standalone SVG, PNG, JSON, CSV
 js/ui.js                 panels, bindings, overlays, the event bus
 data/tamriel-map.js      generated geometry (222 subregions, 89 map regions,

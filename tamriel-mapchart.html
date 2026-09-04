@@ -5,266 +5,309 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tamriel MapChart — Elder Scrolls province &amp; region colourer</title>
-<meta name="description" content="Colour in the provinces and regions of Tamriel, build a legend, and simulate how borders change over the eras.">
+<title>Tamriel MapChart — colour the provinces, regions and subregions of Tamriel</title>
+<meta name="description" content="A deeper MapChart for Tamriel: colour in ten provinces, 89 traced map regions and 222 subregions, mark occupations, name your legend and export a print-ready map.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23171410'/><path d='M16 5l3.6 7.2 8 1.2-5.8 5.6 1.4 7.9L16 23.2l-7.2 3.7 1.4-7.9-5.8-5.6 8-1.2z' fill='%23c8a558'/></svg>">
 <style>
 /* ============================================================
    Tamriel MapChart -- Elder Scrolls provincial map colourer
    ============================================================ */
 :root{
-  --ink:#e8e2d4; --ink-dim:#a9a08c; --ink-faint:#7b7364;
-  --panel:#171410; --panel-2:#1f1b15; --panel-3:#2a241b;
-  --line:#3b3327; --line-2:#4d4232;
-  --gold:#c8a558; --gold-dim:#8d7539; --ember:#b4563a;
-  --ok:#6f9a5e;
-  --shadow:0 8px 26px rgba(0,0,0,.55);
+  --ink:#ece6d8; --ink-dim:#a49a86; --ink-faint:#756d5f;
+  --bg:#0a0908;
+  --panel:#151210; --panel-2:#1c1815; --panel-3:#26211a;
+  --line:#332c24; --line-2:#463d31;
+  --gold:#d4b06a; --gold-2:#a8874a; --gold-dim:#7e6836;
+  --ember:#c05c3d; --ok:#7ba463;
+  --shadow:0 10px 34px rgba(0,0,0,.55);
+  --shadow-sm:0 2px 8px rgba(0,0,0,.4);
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --serif:"Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
   --sans:"Segoe UI",Inter,system-ui,-apple-system,sans-serif;
+  --r:6px;
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{
-  background:#0d0b09; color:var(--ink); font:13px/1.45 var(--sans);
-  overflow:hidden; -webkit-font-smoothing:antialiased;
+  background:var(--bg); color:var(--ink); font:13px/1.5 var(--sans);
+  overflow:hidden; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
 }
 button,input,select,textarea{font:inherit;color:inherit}
-::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-track{background:#100e0b}
-::-webkit-scrollbar-thumb{background:#3a3227;border-radius:6px}
-::-webkit-scrollbar-thumb:hover{background:#4d4232}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#3a3227;border-radius:6px;border:2px solid var(--panel)}
+::-webkit-scrollbar-thumb:hover{background:#544733}
 
 /* ---------- shell ---------- */
-#app{display:grid;grid-template-columns:300px 1fr;grid-template-rows:46px 1fr;height:100%;
-  transition:grid-template-columns .18s ease}
+#app{display:grid;grid-template-columns:316px 1fr;grid-template-rows:52px 1fr;height:100%;
+  transition:grid-template-columns .2s cubic-bezier(.4,0,.2,1)}
 #app.collapsed{grid-template-columns:0 1fr}
 #app.collapsed #side{opacity:0;pointer-events:none}
-#side-toggle{position:fixed;left:300px;top:56px;z-index:40;width:16px;height:44px;
-  border:1px solid var(--line-2);border-left:0;border-radius:0 5px 5px 0;
-  background:linear-gradient(#241f18,#1a1610);color:var(--ink-dim);cursor:pointer;
-  font-size:10px;line-height:1;padding:0;transition:left .18s ease}
+#side-toggle{position:fixed;left:316px;top:64px;z-index:40;width:15px;height:52px;
+  border:1px solid var(--line-2);border-left:0;border-radius:0 7px 7px 0;
+  background:linear-gradient(180deg,#241f18,#17130f);color:var(--ink-faint);cursor:pointer;
+  font-size:9px;line-height:1;padding:0;transition:left .2s cubic-bezier(.4,0,.2,1),color .15s}
 #side-toggle:hover{color:var(--gold);border-color:var(--gold-dim)}
 #app.collapsed #side-toggle{left:0}
-#topbar{grid-row:1;grid-column:1/3;display:flex;align-items:center;gap:10px;padding:0 12px;
-  background:linear-gradient(#1d1913,#141109);border-bottom:1px solid var(--line);z-index:30}
-#brand{display:flex;align-items:baseline;gap:9px;font-family:var(--serif)}
-#brand b{font-size:16px;letter-spacing:.11em;color:var(--gold);font-weight:600}
-#brand span{font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-dim)}
-.tb-sep{width:1px;height:22px;background:var(--line);margin:0 2px}
+
+/* ---------- top bar ---------- */
+#topbar{grid-row:1;grid-column:1/3;display:flex;align-items:center;gap:9px;padding:0 14px;
+  background:linear-gradient(180deg,#1f1a14,#131009);
+  border-bottom:1px solid var(--line);z-index:30;
+  box-shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 6px 18px rgba(0,0,0,.35)}
+#brand{display:flex;align-items:baseline;gap:8px;font-family:var(--serif);
+  padding-right:12px;margin-right:2px;border-right:1px solid var(--line)}
+#brand b{font-size:17px;letter-spacing:.13em;font-weight:600;
+  background:linear-gradient(180deg,#efd9a4,#b3903f);-webkit-background-clip:text;
+  background-clip:text;color:transparent}
+#brand span{font-size:9.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--ink-faint)}
+.tb-sep{width:1px;height:24px;background:var(--line)}
 .tb-grow{flex:1}
-#status{font:11px/1 var(--mono);color:var(--ink-dim);white-space:nowrap;
-  max-width:34vw;overflow:hidden;text-overflow:ellipsis}
+#status{font:11px/1 var(--mono);color:var(--ink-faint);white-space:nowrap;
+  max-width:32vw;overflow:hidden;text-overflow:ellipsis;letter-spacing:.02em}
+
+/* segmented controls in the bar */
+.seg{display:flex;align-items:center;background:#100d0a;border:1px solid var(--line);
+  border-radius:8px;padding:2px;gap:2px}
+.seg .cap{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);
+  padding:0 8px 0 6px}
+.seg button{background:none;border:0;border-radius:6px;padding:5px 11px;cursor:pointer;
+  font-size:11.5px;color:var(--ink-dim);white-space:nowrap;display:flex;align-items:center;gap:5px;
+  transition:background .13s,color .13s}
+.seg button:hover{color:var(--ink);background:#221d16}
+.seg button.on{background:linear-gradient(180deg,#443617,#2c2412);color:var(--gold);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset}
+.seg .gi{font-size:8px;opacity:.8;font-style:normal}
 
 /* ---------- sidebar ---------- */
 #side{grid-row:2;grid-column:1;background:var(--panel);border-right:1px solid var(--line);
   display:flex;flex-direction:column;min-height:0;z-index:20}
-#tabs{display:grid;grid-template-columns:repeat(6,1fr);border-bottom:1px solid var(--line);
-  background:#100e0b;flex:0 0 auto}
-#tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 2px 8px;
-  cursor:pointer;color:var(--ink-dim);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
-#tabs button:hover{color:var(--ink);background:#191510}
-#tabs button.on{color:var(--gold);border-bottom-color:var(--gold);background:#1b1710}
-#panels{flex:1;overflow-y:auto;overflow-x:hidden;min-height:0}
-.panel{display:none;padding:12px}
-.panel.on{display:block}
+#tabs{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line);
+  background:#100d0a;flex:0 0 auto}
+#tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:11px 2px 9px;
+  cursor:pointer;color:var(--ink-faint);font-size:10px;letter-spacing:.11em;
+  text-transform:uppercase;transition:color .13s,background .13s}
+#tabs button:hover{color:var(--ink)}
+#tabs button.on{color:var(--gold);border-bottom-color:var(--gold);
+  background:linear-gradient(180deg,rgba(212,176,106,.07),transparent)}
+#panels{flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;scrollbar-gutter:stable}
+.panel{display:none;padding:14px 14px 28px}
+.panel.on{display:block;animation:fade .18s ease}
+@keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 
-h4{margin:0 0 8px;font:600 10.5px/1 var(--sans);letter-spacing:.15em;
-  text-transform:uppercase;color:var(--gold-dim)}
-h4:not(:first-child){margin-top:18px}
-.hint{font-size:11px;color:var(--ink-dim);margin:6px 0 10px}
-.hint kbd{font:10px var(--mono);background:#2b2419;border:1px solid var(--line-2);
-  border-radius:3px;padding:1px 4px;color:var(--ink)}
+h4{margin:0 0 9px;font:600 9.5px/1 var(--sans);letter-spacing:.2em;
+  text-transform:uppercase;color:var(--gold-2);display:flex;align-items:center;gap:8px}
+h4::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+h4:not(:first-child){margin-top:22px}
+h5{margin:12px 0 6px;font:600 10px/1 var(--sans);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-faint)}
+h5 .sub{text-transform:none;letter-spacing:0;font-weight:400;opacity:.7;font-size:10px}
+.tally{font:10px var(--mono);color:var(--ink-faint);text-transform:none;letter-spacing:0}
+.hint{font-size:11.5px;color:var(--ink-dim);margin:8px 0 10px;line-height:1.55}
+.hint b{color:var(--ink);font-weight:600}
+.hint kbd{font:10px var(--mono);background:#2a2318;border:1px solid var(--line-2);
+  border-bottom-width:2px;border-radius:4px;padding:1px 5px;color:var(--ink)}
 .row{display:flex;gap:6px;align-items:center}
 .row+.row{margin-top:6px}
 .grow{flex:1;min-width:0}
+.mono{font-family:var(--mono);letter-spacing:.02em}
+.val{font-style:normal;color:var(--gold);font-family:var(--mono);font-size:10px}
+.card{background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r);padding:10px}
 
 /* ---------- controls ---------- */
-.btn{background:linear-gradient(#2a241b,#211c15);border:1px solid var(--line-2);
-  border-radius:4px;padding:6px 10px;cursor:pointer;font-size:12px;white-space:nowrap;
-  transition:background .12s,border-color .12s}
-.btn:hover{background:linear-gradient(#332c21,#272119);border-color:var(--gold-dim)}
+.btn{background:linear-gradient(180deg,#2b251c,#201b15);border:1px solid var(--line-2);
+  border-radius:var(--r);padding:7px 11px;cursor:pointer;font-size:12px;white-space:nowrap;
+  transition:background .13s,border-color .13s,color .13s}
+.btn:hover{background:linear-gradient(180deg,#372f23,#282118);border-color:var(--gold-dim)}
 .btn:active{transform:translateY(1px)}
-.btn.sm{padding:4px 7px;font-size:11px}
-.btn.pri{background:linear-gradient(#6a5624,#4e3f1a);border-color:var(--gold-dim);color:#f3ead4}
-.btn.pri:hover{background:linear-gradient(#7d661f,#5b4a1c)}
-.btn.danger:hover{border-color:var(--ember);color:#f0c3b6}
-.btn.on{background:linear-gradient(#4a3d1e,#332a14);border-color:var(--gold);color:var(--gold)}
-.btn[disabled]{opacity:.42;cursor:default;transform:none}
-.btn.ico{padding:5px 8px;font-size:13px;line-height:1}
+.btn.sm{padding:5px 9px;font-size:11.5px}
+.btn.ghost{background:transparent;border-color:var(--line)}
+.btn.ghost:hover{background:#221d16;border-color:var(--gold-dim)}
+.btn.pri{background:linear-gradient(180deg,#8a6f2c,#5d4a1c);border-color:#a1853f;color:#fbf3de;
+  box-shadow:0 1px 0 rgba(255,255,255,.12) inset}
+.btn.pri:hover{background:linear-gradient(180deg,#9d7f30,#6b551f)}
+.btn.danger:hover{border-color:var(--ember);color:#f3c9bb;background:#2a1a14}
+.btn.on{background:linear-gradient(180deg,#4a3a18,#2f2611);border-color:var(--gold-2);color:var(--gold)}
+.btn[disabled]{opacity:.35;cursor:default;transform:none;pointer-events:none}
+.btn.ico{padding:6px 9px;font-size:13px;line-height:1;display:grid;place-items:center}
 input[type=text],input[type=number],select,textarea{
-  background:#0f0d0a;border:1px solid var(--line-2);border-radius:4px;
-  padding:6px 8px;width:100%;font-size:12px}
-input:focus,select:focus,textarea:focus{outline:0;border-color:var(--gold-dim);background:#131009}
-input[type=color]{width:34px;height:28px;padding:2px;background:#0f0d0a;
-  border:1px solid var(--line-2);border-radius:4px;cursor:pointer}
-input[type=range]{width:100%;accent-color:var(--gold)}
-label.ck{display:flex;align-items:center;gap:7px;padding:3px 0;cursor:pointer;font-size:12px}
-label.ck input{accent-color:var(--gold);width:14px;height:14px}
-.fld{margin-bottom:8px}
-.fld>span{display:block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-dim);margin-bottom:4px}
+  background:#0e0c09;border:1px solid var(--line-2);border-radius:var(--r);
+  padding:7px 9px;width:100%;font-size:12px;transition:border-color .13s,background .13s}
+input::placeholder{color:var(--ink-faint)}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--gold-2);background:#12100b;
+  box-shadow:0 0 0 3px rgba(212,176,106,.1)}
+input[type=color]{width:36px;height:30px;padding:2px;background:#0e0c09;
+  border:1px solid var(--line-2);border-radius:var(--r);cursor:pointer}
+input[type=range]{width:100%;accent-color:var(--gold);height:18px}
+label.ck{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:12px;
+  color:var(--ink-dim);transition:color .12s}
+label.ck:hover{color:var(--ink)}
+label.ck input{accent-color:var(--gold);width:14px;height:14px;flex:0 0 auto}
+.fld{margin-bottom:9px}
+.fld>span{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--ink-faint);margin-bottom:5px}
 
 /* ---------- palette ---------- */
-#swatches{display:grid;grid-template-columns:repeat(9,1fr);gap:3px;margin-bottom:9px}
-.sw{aspect-ratio:1;border-radius:2px;border:1px solid rgba(0,0,0,.45);cursor:pointer;
-  position:relative;transition:transform .1s}
-.sw:hover{transform:scale(1.14);z-index:2}
-.sw.on{box-shadow:0 0 0 2px var(--gold),0 0 0 3px #000;transform:scale(1.08)}
-#curcolor{display:flex;align-items:center;gap:8px;margin:10px 0 4px;padding:8px;
-  background:var(--panel-2);border:1px solid var(--line);border-radius:5px}
-#curchip{width:38px;height:38px;border-radius:5px;border:1px solid #000;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
-.palset{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
-.palset button{font-size:10.5px;padding:3px 7px}
+.palset{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:9px}
+.palset button{font-size:10.5px;padding:3.5px 8px;border-radius:20px}
+#swatches{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;margin-bottom:2px}
+.sw{aspect-ratio:1;border-radius:4px;border:1px solid rgba(0,0,0,.5);cursor:pointer;
+  position:relative;transition:transform .11s,box-shadow .11s;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.sw:hover{transform:scale(1.16);z-index:2;box-shadow:0 3px 10px rgba(0,0,0,.5)}
+.sw.on{box-shadow:0 0 0 2px var(--gold),0 0 0 3.5px #0d0b08;transform:scale(1.09);z-index:3}
+.strip{display:flex;flex-wrap:wrap;gap:4px}
+.strip .sw{width:22px;aspect-ratio:1}
+#curcolor{display:flex;align-items:center;gap:10px;margin:12px 0 4px;padding:10px;
+  background:linear-gradient(180deg,var(--panel-2),#181410);
+  border:1px solid var(--line);border-radius:8px}
+#curchip{width:42px;height:42px;border-radius:7px;border:1px solid #000;flex:0 0 auto;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 2px 8px rgba(0,0,0,.5)}
 
 /* ---------- legend editor ---------- */
 #legend-list{display:flex;flex-direction:column;gap:4px}
-.lg{display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:4px;
-  background:var(--panel-2);border:1px solid transparent;cursor:pointer}
-.lg:hover{border-color:var(--line-2)}
-.lg.on{border-color:var(--gold);background:#241f16}
-.lg .chip{width:17px;height:17px;border-radius:3px;border:1px solid #000;flex:0 0 auto}
+.lg{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:var(--r);
+  background:var(--panel-2);border:1px solid transparent;cursor:pointer;transition:border-color .12s,background .12s}
+.lg:hover{border-color:var(--line-2);background:var(--panel-3)}
+.lg.on{border-color:var(--gold-2);background:#2a2317}
+.lg .chip{width:18px;height:18px;border-radius:4px;border:1px solid #000;flex:0 0 auto}
 .lg input.nm{background:none;border:0;padding:0;font-size:12px;flex:1;min-width:0}
-.lg input.nm:focus{background:#0f0d0a;border-radius:3px;padding:1px 4px}
-.lg .n{font:10px var(--mono);color:var(--ink-dim);flex:0 0 auto}
-.lg .x{opacity:.4;cursor:pointer;font-size:14px;line-height:1;padding:0 2px}
+.lg input.nm:focus{background:#0e0c09;border-radius:4px;padding:2px 5px;box-shadow:none}
+.lg .n{font:10px var(--mono);color:var(--ink-faint);flex:0 0 auto}
+.lg .mv{display:flex;flex-direction:column;gap:1px;flex:0 0 auto}
+.lg .mv span{font-size:7px;opacity:.4;cursor:pointer;line-height:1.1}
+.lg .mv span:hover{opacity:1;color:var(--gold)}
+.lg .x{opacity:.35;cursor:pointer;font-size:15px;line-height:1;padding:0 2px}
 .lg .x:hover{opacity:1;color:var(--ember)}
 
+/* ---------- inspector ---------- */
+#inspect .ih{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+#inspect .ih i{width:13px;height:13px;border-radius:3px;border:1px solid rgba(0,0,0,.6);flex:0 0 auto}
+#inspect .ih b{font:600 13px/1.2 var(--serif);letter-spacing:.01em}
+#inspect dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:0;font-size:11.5px}
+#inspect dt{color:var(--ink-faint);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  align-self:center}
+#inspect dd{margin:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+#inspect .nb{margin-top:8px;font-size:10.5px;color:var(--ink-dim);line-height:1.7}
+#inspect .nb em{font-style:normal;color:var(--ink);background:#2a2318;border-radius:3px;
+  padding:1px 5px;margin:0 3px 3px 0;display:inline-block}
+
 /* ---------- region / province tree ---------- */
-#tree{max-height:none}
-.prov{margin-bottom:3px;border-radius:4px;overflow:hidden;background:var(--panel-2)}
-.prov>.hd{display:flex;align-items:center;gap:6px;padding:6px 7px;cursor:pointer}
+.prov{margin-bottom:4px;border-radius:var(--r);overflow:hidden;background:var(--panel-2);
+  border:1px solid transparent;transition:border-color .12s}
+.prov:hover{border-color:var(--line)}
+.prov>.hd{display:flex;align-items:center;gap:7px;padding:7px 8px;cursor:pointer}
 .prov>.hd:hover{background:var(--panel-3)}
-.prov>.hd .tw{width:9px;font-size:9px;color:var(--ink-dim)}
-.prov>.hd b{font-weight:500;font-size:12px;flex:1}
-.prov>.hd .n{font:10px var(--mono);color:var(--ink-dim)}
-.prov .kids{display:none;padding:2px 6px 6px 20px}
+.prov>.hd .tw{width:9px;font-size:9px;color:var(--ink-faint)}
+.prov>.hd b{font-weight:500;font-size:12.5px;flex:1;font-family:var(--serif);letter-spacing:.02em}
+.prov>.hd .n{font:10px var(--mono);color:var(--ink-faint)}
+.prov .kids{display:none;padding:2px 6px 7px 20px}
 .prov.open .kids{display:block}
-.rg{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:3px;
-  cursor:pointer;font-size:11.5px}
+.rg{display:flex;align-items:center;gap:7px;padding:3.5px 5px;border-radius:4px;
+  cursor:pointer;font-size:11.5px;transition:background .1s}
 .rg:hover{background:var(--panel-3)}
-.rg.sel{background:#2f2716;color:var(--gold)}
-.rg .dot{width:10px;height:10px;border-radius:2px;border:1px solid rgba(0,0,0,.6);flex:0 0 auto}
-.rg .cty{font-size:10px;color:var(--ink-dim);margin-left:auto}
+.rg.sel{background:#33291459;color:var(--gold);box-shadow:inset 2px 0 0 var(--gold)}
+.rg .dot{width:10px;height:10px;border-radius:3px;border:1px solid rgba(0,0,0,.6);flex:0 0 auto}
+.rg .cty{font-size:10px;color:var(--ink-faint);margin-left:auto}
 .rg.base{font-weight:500}
-.rg .tw{width:9px;font-size:8px;color:var(--ink-dim);flex:0 0 auto}
+.rg .tw{width:9px;font-size:8px;color:var(--ink-faint);flex:0 0 auto}
 .subs{display:none;padding-left:16px}
 .rg.base.open+.subs{display:block}
 .rg.sub{font-size:11px;color:var(--ink-dim)}
 .rg.sub:hover{color:var(--ink)}
 
-/* ---------- timeline ---------- */
-#kf-list{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
-.kf{display:flex;align-items:center;gap:6px;padding:6px;border-radius:4px;
-  background:var(--panel-2);border:1px solid transparent;cursor:pointer}
-.kf:hover{border-color:var(--line-2)}
-.kf.on{border-color:var(--gold);background:#241f16}
-.kf .i{font:10px var(--mono);color:var(--ink-dim);width:16px;text-align:right}
-.kf .tx{flex:1;min-width:0}
-.kf .tx b{display:block;font:600 11.5px/1.3 var(--sans);white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis}
-.kf .tx i{font:10px/1.3 var(--mono);color:var(--gold-dim);font-style:normal}
-.kf .mv{display:flex;flex-direction:column;gap:1px}
-.kf .mv span{font-size:8px;opacity:.45;cursor:pointer;line-height:1}
-.kf .mv span:hover{opacity:1}
-.kf .x{opacity:.4;cursor:pointer;font-size:14px;padding:0 2px}
-.kf .x:hover{opacity:1;color:var(--ember)}
-#tl-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-#tl-scrub{flex:1}
-
-/* ---------- simulation ---------- */
-.fac{background:var(--panel-2);border:1px solid var(--line);border-radius:5px;
-  padding:7px;margin-bottom:6px}
-.fac .top{display:flex;align-items:center;gap:6px;margin-bottom:5px}
-.fac .top input[type=text]{flex:1}
-.fac .seeds{font-size:10.5px;color:var(--ink-dim);line-height:1.5;
-  max-height:52px;overflow-y:auto}
-.fac .seeds em{font-style:normal;color:var(--ink);background:#2b2419;
-  border-radius:3px;padding:0 4px;margin:0 3px 3px 0;display:inline-block}
-
 /* ---------- map stage ---------- */
-#stage{grid-row:2;grid-column:2;position:relative;overflow:hidden;background:#12100c;min-height:0}
+#stage{grid-row:2;grid-column:2;position:relative;overflow:hidden;background:#0f0d0a;min-height:0}
 #svgwrap{position:absolute;inset:0}
+#stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:9;
+  box-shadow:inset 0 0 120px 10px rgba(0,0,0,.42)}
 #map{width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
 #map.panning{cursor:grabbing}
 #map.picking{cursor:copy}
 .region{stroke-linejoin:round;transition:fill .1s linear}
-.region.hov{filter:brightness(1.16) saturate(1.06)}
+.region.hov{filter:brightness(1.15) saturate(1.06)}
 .region.sel{stroke:#fff !important;stroke-width:1.6px !important}
-#tip{position:absolute;pointer-events:none;background:rgba(10,8,6,.94);
-  border:1px solid var(--line-2);border-left:2px solid var(--gold);border-radius:4px;
-  padding:5px 9px;font-size:11.5px;box-shadow:var(--shadow);opacity:0;
-  transition:opacity .1s;z-index:12;white-space:nowrap}
-#tip b{display:block;font-size:12.5px}
+#tip{position:absolute;pointer-events:none;background:rgba(12,10,8,.95);
+  border:1px solid var(--line-2);border-left:2px solid var(--gold);border-radius:var(--r);
+  padding:6px 10px;font-size:11.5px;box-shadow:var(--shadow);opacity:0;
+  transition:opacity .1s;z-index:12;white-space:nowrap;backdrop-filter:blur(6px)}
+#tip b{display:block;font-size:12.5px;font-family:var(--serif);letter-spacing:.02em}
 #tip i{font-style:normal;color:var(--ink-dim);font-size:10.5px}
-#zoomctl{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:4px;z-index:11}
-#zoomctl .btn{width:32px;height:30px;display:grid;place-items:center;padding:0;
-  background:rgba(20,17,12,.9)}
-#era{position:absolute;left:16px;top:14px;z-index:11;pointer-events:none;
-  font-family:var(--serif);text-shadow:0 2px 10px rgba(0,0,0,.7)}
-#era .t{font-size:22px;font-weight:600;letter-spacing:.02em}
-#era .d{font:12px var(--mono);letter-spacing:.14em;color:var(--gold)}
-#era .n{font-size:12px;max-width:390px;margin-top:3px;opacity:.85;line-height:1.4}
+#zoomctl{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:5px;z-index:11}
+#zoomctl .btn{width:33px;height:31px;padding:0;background:rgba(20,17,12,.88);
+  backdrop-filter:blur(6px);box-shadow:var(--shadow-sm)}
+#titlecard{position:absolute;left:18px;top:16px;z-index:11;pointer-events:none;
+  font-family:var(--serif);text-shadow:0 2px 12px rgba(0,0,0,.75)}
+#titlecard .t{font-size:23px;font-weight:600;letter-spacing:.03em;line-height:1.15}
+#titlecard .s{font:12px var(--sans);letter-spacing:.16em;text-transform:uppercase;
+  color:var(--gold);margin-top:3px;opacity:.9}
+#titlecard.light .t,#titlecard.light .s{color:#1a1712;text-shadow:0 1px 8px rgba(255,255,255,.75)}
+#titlecard.light .s{color:#6b5320}
 #maplegend{position:absolute;left:16px;top:16px;z-index:11;pointer-events:auto;touch-action:none;
-  background:rgba(12,10,8,.82);border:1px solid var(--line);border-radius:5px;
-  padding:8px 11px;box-shadow:var(--shadow);max-width:260px}
-#maplegend .lt{font:600 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;
-  color:var(--gold-dim);margin-bottom:6px}
-#maplegend .li{display:flex;align-items:center;gap:7px;font-size:11.5px;padding:1.5px 0}
-#maplegend .li i{width:13px;height:13px;border-radius:2px;border:1px solid rgba(0,0,0,.6);
+  background:rgba(13,11,8,.86);border:1px solid var(--line);border-radius:8px;
+  padding:9px 12px;box-shadow:var(--shadow);max-width:330px;backdrop-filter:blur(8px)}
+#maplegend .lt{font:600 9.5px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;
+  color:var(--gold-2);margin-bottom:7px}
+#maplegend .cols{display:grid;gap:0 16px}
+#maplegend .li{display:flex;align-items:center;gap:8px;font-size:11.5px;padding:2px 0;
+  white-space:nowrap}
+#maplegend .li i{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.6);
   flex:0 0 auto}
-#playbar{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;z-index:12;
-  display:none;align-items:center;gap:9px;background:rgba(14,12,9,.93);
-  border:1px solid var(--line-2);border-radius:22px;padding:6px 12px;box-shadow:var(--shadow)}
-#playbar.on{display:flex}
-#playbar input[type=range]{width:220px}
-#playbar .lbl{font:11px var(--mono);color:var(--gold);min-width:64px;text-align:center}
+#maplegend .li u{text-decoration:none;font:10px var(--mono);color:var(--ink-faint);margin-left:auto;
+  padding-left:8px}
 
 /* ---------- misc ---------- */
-.note{background:#191510;border:1px solid var(--line);border-left:2px solid var(--gold-dim);
-  border-radius:4px;padding:7px 9px;font-size:11.5px;color:var(--ink-dim);margin:8px 0}
+.note{background:#191410;border:1px solid var(--line);border-left:2px solid var(--gold-dim);
+  border-radius:var(--r);padding:8px 10px;font-size:11.5px;color:var(--ink-dim);margin:9px 0}
 .slots{display:flex;flex-direction:column;gap:4px}
-.slot{display:flex;align-items:center;gap:6px;background:var(--panel-2);
-  border:1px solid var(--line);border-radius:4px;padding:5px 7px}
+.slot{display:flex;align-items:center;gap:7px;background:var(--panel-2);
+  border:1px solid var(--line);border-radius:var(--r);padding:6px 8px}
 .slot .nm{flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.slot .dt{font:9.5px var(--mono);color:var(--ink-dim)}
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:99;
-  background:rgba(16,13,9,.96);border:1px solid var(--gold-dim);border-radius:20px;
-  padding:8px 18px;font-size:12.5px;box-shadow:var(--shadow);opacity:0;
-  transition:opacity .2s,transform .2s;pointer-events:none}
-#toast.on{opacity:1;transform:translateX(-50%) translateY(-4px)}
+.slot .dt{font:9.5px var(--mono);color:var(--ink-faint)}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:28px;z-index:99;
+  background:rgba(18,15,10,.97);border:1px solid var(--gold-dim);border-radius:22px;
+  padding:9px 20px;font-size:12.5px;box-shadow:var(--shadow);opacity:0;
+  transition:opacity .2s,transform .2s;pointer-events:none;backdrop-filter:blur(8px)}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(-5px)}
+
 /* immersive: nothing but the map */
 #app.immersive{grid-template-columns:0 1fr;grid-template-rows:0 1fr}
 #app.immersive #topbar,#app.immersive #side,#app.immersive #side-toggle{display:none}
-#exit-immersive{position:absolute;right:12px;top:12px;z-index:30;display:none;
-  width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:16px;line-height:1;
-  background:rgba(20,17,12,.85);border:1px solid var(--line-2);color:var(--ink-dim)}
+#exit-immersive{position:absolute;right:14px;top:14px;z-index:30;display:none;
+  width:31px;height:31px;border-radius:8px;cursor:pointer;font-size:16px;line-height:1;
+  background:rgba(20,17,12,.85);border:1px solid var(--line-2);color:var(--ink-dim);
+  backdrop-filter:blur(6px)}
 #exit-immersive:hover{color:var(--gold);border-color:var(--gold-dim)}
 #app.immersive #exit-immersive{display:block}
-#app.immersive #era{left:22px;top:20px}
+#app.immersive #titlecard{left:24px;top:22px}
 
-#ctxmenu{position:fixed;z-index:60;display:none;min-width:210px;padding:4px;
-  background:rgba(20,17,12,.985);border:1px solid var(--line-2);border-radius:6px;
-  box-shadow:0 12px 34px rgba(0,0,0,.6)}
-#ctxmenu.on{display:block}
-#ctxmenu .ct{font:600 10px/1 var(--sans);letter-spacing:.13em;text-transform:uppercase;
-  color:var(--gold-dim);padding:7px 9px 6px;border-bottom:1px solid var(--line);
-  margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ctxmenu{position:fixed;z-index:60;display:none;min-width:222px;padding:5px;
+  background:rgba(22,18,13,.985);border:1px solid var(--line-2);border-radius:9px;
+  box-shadow:0 16px 40px rgba(0,0,0,.65);backdrop-filter:blur(10px)}
+#ctxmenu.on{display:block;animation:pop .12s ease}
+@keyframes pop{from{opacity:0;transform:scale(.97) translateY(-3px)}to{opacity:1;transform:none}}
+#ctxmenu .ct{font:600 9.5px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;
+  color:var(--gold-2);padding:8px 10px 7px;border-bottom:1px solid var(--line);
+  margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #ctxmenu button{display:block;width:100%;text-align:left;background:none;border:0;
-  padding:6px 9px;border-radius:4px;cursor:pointer;font-size:12px;color:var(--ink)}
+  padding:7px 10px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--ink)}
 #ctxmenu button:hover{background:var(--panel-3);color:var(--gold)}
+#ctxmenu hr{border:0;border-top:1px solid var(--line);margin:4px 6px}
 .citydistrict{cursor:pointer}
 .region.occ{pointer-events:none}
 #g-occ path{pointer-events:none}
-
-@media (max-width:900px){
-  #app{grid-template-columns:280px 1fr}
-  #tabs{grid-template-columns:repeat(3,1fr)}
-}
-
-/* city layers */
 #g-city text{pointer-events:none}
+
+@media (max-width:1100px){
+  #app{grid-template-columns:290px 1fr}
+  #side-toggle{left:290px}
+  #seg-level .cap{display:none}
+}
+@media (max-width:900px){
+  #brand span{display:none}
+  #status{display:none}
+}
 
 </style>
 </head>
@@ -274,26 +317,32 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px}
   <!-- ==================== top bar ==================== -->
   <header id="topbar">
     <div id="brand"><b>TAMRIEL</b><span>MapChart</span></div>
-    <div class="tb-sep"></div>
-    <button class="btn sm" id="m-paint"  title="Paint regions (B)">Paint</button>
-    <button class="btn sm" id="m-select" title="Select regions (V)">Select</button>
-    <button class="btn sm" id="m-pick"   title="Pick a colour from the map (I)">Pick</button>
-    <div class="tb-sep"></div>
-    <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim)">Fill</span>
-    <button class="btn sm" id="lv-province"  title="A click fills a whole province">Province</button>
-    <button class="btn sm" id="lv-region"    title="A click fills one region of the original map">Region</button>
-    <button class="btn sm" id="lv-subregion" title="A click fills a subregion">Subregion</button>
-    <div class="tb-sep"></div>
-    <button class="btn sm" id="lv-city" title="Show and colour the circular city districts (C) — rides along with any level">City</button>
+
+    <div class="seg" id="seg-mode" role="group" aria-label="Tool">
+      <button id="m-paint"  title="Paint regions (B)"><i class="gi">&#9679;</i>Paint</button>
+      <button id="m-select" title="Select regions (V)"><i class="gi">&#9744;</i>Select</button>
+      <button id="m-pick"   title="Pick a colour from the map (I)"><i class="gi">&#9698;</i>Pick</button>
+    </div>
+
+    <div class="seg lbl" id="seg-level" role="group" aria-label="Fill level">
+      <span class="cap">Fill</span>
+      <button id="lv-province"  title="A click fills a whole province">Province</button>
+      <button id="lv-region"    title="A click fills one of the 89 traced map regions">Region</button>
+      <button id="lv-subregion" title="A click fills a single subregion">Subregion</button>
+    </div>
+
+    <button class="btn sm ghost" id="lv-city" title="Show and colour the circular city districts (C) — rides along with any level">&#9678; Cities</button>
+
     <div class="tb-sep"></div>
     <button class="btn ico" id="b-undo" title="Undo (Ctrl+Z)">&#8630;</button>
     <button class="btn ico" id="b-redo" title="Redo (Ctrl+Shift+Z)">&#8631;</button>
-    <button class="btn sm" id="b-fit" title="Fit the whole map (0)">Fit</button>
+    <button class="btn ico" id="b-fit"  title="Fit the whole map (0)">&#9723;</button>
+
     <div class="tb-grow"></div>
     <div id="status"></div>
     <div class="tb-sep"></div>
-    <button class="btn sm" id="b-immersive" title="Immersive view — just the map (F)">Immersive</button>
-    <button class="btn sm pri" id="b-png" title="Export a PNG image">PNG</button>
+    <button class="btn sm ghost" id="b-immersive" title="Immersive view — just the map (F)">Immersive</button>
+    <button class="btn sm pri" id="b-png" title="Export a PNG image">Export PNG</button>
   </header>
 
   <!-- ==================== sidebar ==================== -->
@@ -303,44 +352,56 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px}
       <button data-p="paint">Paint</button>
       <button data-p="select">Select</button>
       <button data-p="style">Style</button>
-      <button data-p="time">Time</button>
-      <button data-p="sim">Sim</button>
       <button data-p="file">File</button>
     </nav>
     <div id="panels">
 
       <!-- ---------- paint ---------- -->
       <section class="panel" data-p="paint">
-        <h4>Choose a colour</h4>
-        <div id="swatches"></div>
+        <h4>Palette</h4>
         <div class="palset" id="palset"></div>
+        <div id="swatches"></div>
+
         <div id="curcolor">
           <div id="curchip"></div>
           <div class="grow">
             <div class="row">
               <input type="color" id="pk-color" value="#8c2f2a" title="Pick any colour">
-              <input type="text" id="pk-hex" class="grow" value="#8c2f2a" spellcheck="false">
+              <input type="text" id="pk-hex" class="grow mono" value="#8c2f2a" spellcheck="false">
+              <button class="btn ico" id="pk-save" title="Save this colour to My colours">&#9734;</button>
             </div>
             <div class="row" style="margin-top:6px">
               <input type="text" id="pk-label" class="grow" placeholder="Name this colour in the legend">
             </div>
           </div>
         </div>
-        <p class="hint">Click to fill whatever the <b>Fill</b> switch is set to — a whole
-          province, one of the original map's 89 regions, or a single subdivision. Drag to
-          paint several. <kbd>Shift</kbd>+click always takes the whole province,
-          <kbd>Alt</kbd>+click clears. <b>Right-click</b> a region for occupation — the
-          occupier's colour is striped over the owner's. Drag the sea to pan, scroll to
-          zoom.</p>
 
-        <h4>Legend <span id="lg-count" style="color:var(--ink-dim)"></span></h4>
+        <div id="recent-wrap" hidden>
+          <h5>Recent</h5>
+          <div class="strip" id="recent"></div>
+        </div>
+        <div id="mine-wrap" hidden>
+          <h5>My colours <span class="sub">right-click to forget</span></h5>
+          <div class="strip" id="mine"></div>
+        </div>
+
+        <p class="hint">Click to fill whatever the <b>Fill</b> switch is set to.
+          Drag to paint several. <kbd>Shift</kbd>+click takes the whole province,
+          <kbd>Alt</kbd>+click clears. <b>Right-click</b> a region to occupy it — the
+          occupier's colour is striped over the owner's. Drag the sea to pan, scroll to zoom.</p>
+
+        <h4>Legend <span id="lg-count" class="tally"></span></h4>
         <div id="legend-list"></div>
         <p class="hint" id="lg-empty">Nothing painted yet — the legend fills itself as you colour.</p>
 
         <h4>Quick fills</h4>
         <div class="row">
-          <button class="btn sm grow" id="q-prov">Colour by province</button>
+          <button class="btn sm grow" id="q-prov">By province</button>
+          <button class="btn sm grow" id="q-region">By region</button>
+        </div>
+        <div class="row">
           <button class="btn sm grow" id="q-rand">Random</button>
+          <button class="btn sm grow" id="q-rest">Fill the rest</button>
         </div>
         <div class="row">
           <button class="btn sm grow" id="q-all">Fill everything</button>
@@ -350,11 +411,11 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px}
 
       <!-- ---------- select ---------- -->
       <section class="panel" data-p="select">
-        <h4>Find a region</h4>
+        <h4>Find a place</h4>
         <input type="text" id="find" placeholder="Search regions, provinces or cities…" spellcheck="false">
         <div id="find-out" style="margin-top:6px"></div>
 
-        <h4>Selection <span id="sel-count" style="color:var(--ink-dim)"></span></h4>
+        <h4>Selection <span id="sel-count" class="tally"></span></h4>
         <div class="row">
           <button class="btn sm grow pri" id="sel-fill">Fill with active colour</button>
           <button class="btn sm" id="sel-erase" title="Clear the colour of the selected regions">Erase</button>
@@ -365,7 +426,12 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px}
           <button class="btn sm grow" id="sel-none">None</button>
         </div>
         <p class="hint">In <b>Select</b> mode, click to add or remove whatever the
-          <b>Fill</b> switch covers. Double-click any region to grab its whole province.</p>
+          <b>Fill</b> switch covers. Double-click any row below to fly to it.</p>
+
+        <h4>Inspector</h4>
+        <div id="inspect" class="card">
+          <p class="hint" style="margin:0">Hover the map to inspect a region.</p>
+        </div>
 
         <h4>Provinces, regions &amp; subdivisions</h4>
         <div id="tree"></div>
@@ -375,6 +441,8 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px}
       <section class="panel" data-p="style">
         <h4>Map style</h4>
         <div class="fld"><span>Theme</span><select id="s-theme"></select></div>
+
+        <h4>Names</h4>
         <div class="fld"><span>Region labels</span>
           <select id="s-labelmode">
             <option value="none">No names (as the reference map)</option>
@@ -388,7 +456,7 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px}
             <option value="city">City names (MapChart style)</option>
           </select>
         </div>
-        <div class="fld"><span>Label size <i id="s-labelsize-v" style="font-style:normal;color:var(--gold)"></i></span>
+        <div class="fld"><span>Label size <i id="s-labelsize-v" class="val"></i></span>
           <input type="range" id="s-labelsize" min="2.5" max="12" step="0.2"></div>
 
         <h4>Layers</h4>
@@ -402,22 +470,25 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px}
         <label class="ck"><input type="checkbox" id="s-citydistricts"> City districts (circular)</label>
         <label class="ck" id="row-rivers"><input type="checkbox" id="s-rivers"> Rivers</label>
         <label class="ck" id="row-lakes"><input type="checkbox" id="s-lakes"> Lakes &amp; inland seas</label>
-        <div class="fld"><span>City marker size <i id="s-cs-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="s-cs" min="0.5" max="3" step="0.1"></div>
-        <div class="fld"><span>Occupation stripe width <i id="s-stripe-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="s-stripe" min="0.8" max="6" step="0.2"></div>
-        <div class="fld" style="margin-top:10px"><span>Subregion border <i id="s-bw-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="s-bw" min="0" max="2" step="0.05"></div>
-        <div class="fld"><span>Map region border <i id="s-bbw-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="s-bbw" min="0" max="3" step="0.05"></div>
-        <div class="fld"><span>Province border <i id="s-pbw-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="s-pbw" min="0" max="5" step="0.1"></div>
 
-        <h4>Titles &amp; legend</h4>
+        <h4>Line weights</h4>
+        <div class="fld"><span>Subregion border <i id="s-bw-v" class="val"></i></span>
+          <input type="range" id="s-bw" min="0" max="2" step="0.05"></div>
+        <div class="fld"><span>Map region border <i id="s-bbw-v" class="val"></i></span>
+          <input type="range" id="s-bbw" min="0" max="3" step="0.05"></div>
+        <div class="fld"><span>Province border <i id="s-pbw-v" class="val"></i></span>
+          <input type="range" id="s-pbw" min="0" max="5" step="0.1"></div>
+        <div class="fld"><span>City marker size <i id="s-cs-v" class="val"></i></span>
+          <input type="range" id="s-cs" min="0.5" max="3" step="0.1"></div>
+        <div class="fld"><span>Occupation stripe width <i id="s-stripe-v" class="val"></i></span>
+          <input type="range" id="s-stripe" min="0.8" max="6" step="0.2"></div>
+
+        <h4>Title &amp; legend</h4>
         <div class="fld"><span>Title</span><input type="text" id="s-title"></div>
         <div class="fld"><span>Subtitle</span><input type="text" id="s-subtitle"></div>
         <div class="fld"><span>Legend heading</span><input type="text" id="s-legendtitle"></div>
         <label class="ck"><input type="checkbox" id="s-showlegend"> Show the legend on the map</label>
+        <label class="ck"><input type="checkbox" id="s-legendcounts"> Show how many regions each colour holds</label>
         <div class="fld" style="margin-top:8px"><span>Legend position</span>
           <select id="s-legendpos">
             <option value="tr">Top right</option>
@@ -427,90 +498,12 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px}
             <option value="custom">Where I dragged it</option>
           </select>
         </div>
+        <div class="fld"><span>Legend columns <i id="s-legendcols-v" class="val"></i></span>
+          <input type="range" id="s-legendcols" min="1" max="4" step="1"></div>
         <p class="hint">You can also just drag the legend around the map.</p>
-      </section>
 
-      <!-- ---------- time ---------- -->
-      <section class="panel" data-p="time">
-        <h4>Built-in histories</h4>
-        <div class="fld"><select id="tl-scenario"></select></div>
-        <div class="row">
-          <button class="btn sm pri grow" id="tl-load">Load history</button>
-          <button class="btn sm" id="tl-append" title="Add these frames after the current ones">Append</button>
-        </div>
-        <p class="hint" id="tl-scnote"></p>
-
-        <h4>Keyframes <span id="kf-count" style="color:var(--ink-dim)"></span></h4>
-        <div id="tl-bar">
-          <button class="btn ico" id="tl-play" title="Play / pause (Space)">&#9654;</button>
-          <input type="range" id="tl-scrub" min="0" max="0" step="0.01" value="0">
-          <span class="lbl" id="tl-pos" style="font:11px var(--mono);color:var(--gold)"></span>
-        </div>
-        <div id="kf-list"></div>
-        <div class="row">
-          <button class="btn sm grow pri" id="kf-add">Capture frame</button>
-          <button class="btn sm grow" id="kf-update">Update</button>
-        </div>
-        <p class="hint">“Capture frame” stores the current colouring and legend as a moment in
-          history. Press play to watch the borders move.</p>
-
-        <h4>Frame details</h4>
-        <div class="fld"><span>Date</span><input type="text" id="kf-date" placeholder="2E 582"></div>
-        <div class="fld"><span>Title</span><input type="text" id="kf-title" placeholder="The Three Banners War"></div>
-        <div class="fld"><span>Note</span><textarea id="kf-note" rows="2"></textarea></div>
-
-        <h4>Playback</h4>
-        <div class="fld"><span>Seconds per frame <i id="tl-spf-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="tl-spf" min="0.3" max="6" step="0.1"></div>
-        <label class="ck"><input type="checkbox" id="tl-crossfade"> Cross-fade between frames</label>
-        <label class="ck"><input type="checkbox" id="tl-loop"> Loop</label>
-        <div class="row" style="margin-top:8px">
-          <button class="btn sm grow" id="tl-frames">Export every frame as PNG</button>
-        </div>
-      </section>
-
-      <!-- ---------- sim ---------- -->
-      <section class="panel" data-p="sim">
-        <h4>History simulator</h4>
-        <p class="hint">Factions expand turn by turn across the region adjacency graph —
-          199 subregions and their sea crossings. Every turn becomes a keyframe you can play back.</p>
-        <div class="fld"><span>Starting powers</span><select id="sm-preset"></select></div>
-        <div class="row">
-          <button class="btn sm grow" id="sm-loadpreset">Use these</button>
-          <button class="btn sm grow" id="sm-frompaint" title="One faction per legend colour">From my painting</button>
-        </div>
-
-        <h4>Factions <span id="sm-count" style="color:var(--ink-dim)"></span></h4>
-        <div id="sm-factions"></div>
-        <div class="row">
-          <button class="btn sm grow" id="sm-addfac">Add faction</button>
-          <button class="btn sm" id="sm-clearfac">Clear</button>
-        </div>
-
-        <h4>Rules</h4>
-        <div class="fld"><span>History seed</span><input type="text" id="sm-seed" value="tamriel"></div>
-        <div class="row">
-          <div class="fld grow"><span>Turns</span><input type="number" id="sm-steps" min="1" max="80" value="14"></div>
-          <div class="fld grow"><span>Attempts / turn</span><input type="number" id="sm-attempts" min="1" max="12" value="3"></div>
-        </div>
-        <div class="fld"><span>Expansion into empty land <i id="sm-exp-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="sm-exp" min="0.05" max="1" step="0.05" value="0.55"></div>
-        <div class="fld"><span>Aggression against rivals <i id="sm-agg-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="sm-agg" min="0" max="1" step="0.02" value="0.28"></div>
-        <div class="fld"><span>Sea-crossing difficulty <i id="sm-sea-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="sm-sea" min="0" max="1" step="0.02" value="0.22"></div>
-        <div class="fld"><span>Chance of revolt <i id="sm-rev-v" style="font-style:normal;color:var(--gold)"></i></span>
-          <input type="range" id="sm-rev" min="0" max="0.25" step="0.01" value="0.03"></div>
-        <div class="row">
-          <div class="fld grow"><span>Era</span>
-            <select id="sm-era"><option>1E</option><option selected>2E</option><option>3E</option><option>4E</option></select></div>
-          <div class="fld grow"><span>Start year</span><input type="number" id="sm-year" value="580"></div>
-          <div class="fld grow"><span>Years / turn</span><input type="number" id="sm-ypt" value="4" min="1"></div>
-        </div>
-        <div class="row">
-          <button class="btn pri grow" id="sm-run">Run simulation</button>
-          <button class="btn" id="sm-runplay">Run &amp; play</button>
-        </div>
+        <h4>Reset</h4>
+        <button class="btn sm" id="s-reset">Restore the default style</button>
       </section>
 
       <!-- ---------- file ---------- -->
@@ -539,7 +532,7 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px}
             <option value="screen">Just what I can see</option>
           </select>
         </div>
-        <div class="fld"><span>PNG scale <i id="e-scale-v" style="font-style:normal;color:var(--gold)"></i></span>
+        <div class="fld"><span>PNG scale <i id="e-scale-v" class="val"></i></span>
           <input type="range" id="e-scale" min="1" max="6" step="0.5" value="2"></div>
 
         <h4>Import</h4>
@@ -554,15 +547,19 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px}
         <h4>Keyboard</h4>
         <p class="hint">
           <kbd>B</kbd> paint · <kbd>V</kbd> select · <kbd>I</kbd> pick colour ·
-          <kbd>P</kbd> cycle fill level · <kbd>C</kbd> city mode · <kbd>Tab</kbd> hide panel · <kbd>F</kbd> immersive · <kbd>Space</kbd> play/pause ·
-          <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo ·
-          <kbd>0</kbd> fit · <kbd>+</kbd>/<kbd>-</kbd> zoom · <kbd>K</kbd> capture frame ·
-          <kbd>1</kbd>…<kbd>9</kbd> pick palette colour
+          <kbd>P</kbd> cycle fill level · <kbd>C</kbd> cities · <kbd>Tab</kbd> hide panel ·
+          <kbd>F</kbd> immersive · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo ·
+          <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo · <kbd>Ctrl</kbd>+<kbd>S</kbd> save ·
+          <kbd>0</kbd> fit · <kbd>+</kbd>/<kbd>-</kbd> zoom ·
+          <kbd>1</kbd>…<kbd>9</kbd> pick a palette colour
         </p>
+
         <h4>About</h4>
-        <p class="hint">The coastline and every map-region border are traced pixel by pixel
-          from the reference Tamriel map, so the outline matches 1:1. Each of those regions is
-          then split further, giving 199 subdivisions across the nine provinces.</p>
+        <p class="hint">The coastline and every map-region border are traced pixel by pixel from
+          the reference Tamriel map, so the outline matches it 1:1. Those
+          <b>89 regions</b> are then carved into <b>222 subregions</b> across the
+          <b>ten provinces</b>, with <b>69 city districts</b> on top — three tiers deeper than
+          the original.</p>
       </section>
     </div>
   </aside>
@@ -571,10 +568,9 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px}
   <main id="stage">
     <div id="svgwrap"></div>
     <div id="tip"></div>
-    <div id="era">
-      <div class="t" id="era-t"></div>
-      <div class="d" id="era-d"></div>
-      <div class="n" id="era-n"></div>
+    <div id="titlecard">
+      <div class="t" id="tc-t"></div>
+      <div class="s" id="tc-s"></div>
     </div>
     <div id="maplegend"></div>
     <div id="zoomctl">
@@ -584,12 +580,6 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px}
     </div>
     <button id="exit-immersive" title="Leave immersive view (F or Esc)">&times;</button>
     <div id="ctxmenu"></div>
-    <div id="playbar">
-      <button class="btn ico" id="pb-play">&#9654;</button>
-      <input type="range" id="pb-scrub" min="0" max="0" step="0.01" value="0">
-      <span class="lbl" id="pb-lbl"></span>
-      <button class="btn ico" id="pb-close" title="Leave playback">&times;</button>
-    </div>
   </main>
 </div>
 <div id="toast"></div>
@@ -627,7 +617,13 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     'Muted':    ['#9c6b6b', '#6b829c', '#7a9c6b', '#9c936b', '#8a6b9c', '#6b9c95',
                  '#b08a6b', '#9c6b85', '#7c876b', '#6b769c', '#a3a36b', '#8a7266'],
     'Greys':    ['#111111', '#2b2b2b', '#454545', '#5f5f5f', '#797979', '#939393',
-                 '#adadad', '#c7c7c7', '#e1e1e1', '#f5f5f5']
+                 '#adadad', '#c7c7c7', '#e1e1e1', '#f5f5f5'],
+    'Guilds':   ['#7d2b2b', '#1f4f7a', '#2f6b3f', '#8a7320', '#4f2f6b', '#1f6b6b',
+                 '#a8622f', '#6b2f4f', '#3f5230', '#243c63', '#8a8a3a', '#5e3a2f'],
+    'Heraldry': ['#a41f22', '#12386e', '#1c6b3a', '#d8a520', '#4a1f6b', '#0f5f63',
+                 '#e0e0dc', '#1a1a1a', '#8a5a1f', '#6e1f4a', '#3f6b1f', '#c96f1f'],
+    'Pastel':   ['#e8b4b0', '#b0c8e8', '#b6dfc0', '#eedfae', '#cfb8e0', '#a9dbd8',
+                 '#f0c9a8', '#e6b3cd', '#cdd8ae', '#b6bfe0', '#e3e3ae', '#d3bcac']
   };
 
   /* ------------------------------------------------------------ map themes */
@@ -684,22 +680,20 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
       legendTitle: 'Legend', showLegend: true,
       legendAt: [0.985, 0.02], legendAnchor: 'tr',
       labelSource: 'region',
-      crossfade: true, secPerFrame: 1.6, loopPlay: false,
-      exportScale: 2, exportView: 'fit', captionFromTimeline: true
+      legendCols: 1, legendSize: 11.5, legendCounts: false,
+      exportScale: 2, exportView: 'fit'
     };
   }
 
   function newDoc() {
     return {
-      version: 3,
+      version: 4,
       name: 'Untitled map',
       colors: {},                     // parcelId -> hex
       occupied: {},                   // parcelId -> hex of the occupying power
       cityColors: {},                 // cityId   -> hex
       groups: [],                     // [{color, label}]
-      style: defaultStyle(),
-      keyframes: [],                  // [{date,title,note,colors,groups}]
-      factions: []
+      style: defaultStyle()
     };
   }
 
@@ -716,16 +710,13 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     provBases: {},        // province -> [baseIds]
     activeColor: '#8c2f2a',
     activePalette: 'Banners',
+    recent: [],           // most-recently-used colours, newest first
     selection: {},        // id -> true
     mode: 'paint',        // paint | select | pick
     level: 'region',      // province | region | subregion | parcel
     tool: 'region',       // kept for province-wide Shift+click
-    playhead: 0,
-    playing: false,
-    activeKf: -1,
     hover: null,
-    dirty: false,
-    scrubbing: false
+    dirty: false
   };
 
   /* ----------------------------------------------------------------- undo */
@@ -736,7 +727,6 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
                             occupied: S.doc.occupied, cityColors: S.doc.cityColors });
   }
   function pushUndo() {
-    S.scrubbing = false;
     undoStack.push(snap());
     if (undoStack.length > LIMIT) undoStack.shift();
     redoStack.length = 0;
@@ -808,7 +798,6 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
 
   /* ---------------------------------------------------------------- paint */
   function setColor(ids, hex, noUndo) {
-    S.scrubbing = false;
     if (!Array.isArray(ids)) ids = [ids];
     hex = hex === null ? null : normHex(hex);
     if (!noUndo) pushUndo();
@@ -846,9 +835,19 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     W.TM.emit('paint');
   }
 
+  /* ------------------------------------------------- recent & saved colours */
+  var RECENT_MAX = 14;
+  function noteColor(hex) {
+    hex = normHex(hex);
+    if (!hex) return;
+    S.recent = [hex].concat(S.recent.filter(function (c) { return c !== hex; }))
+                    .slice(0, RECENT_MAX);
+  }
+
   /* -------------------------------------------------------------- storage */
   var LS_SLOTS = 'tamriel.mapchart.slots';
   var LS_AUTO = 'tamriel.mapchart.autosave';
+  var LS_SWATCH = 'tamriel.mapchart.swatches';
 
   function safeGet(k) { try { return W.localStorage.getItem(k); } catch (e) { return null; } }
   function safeSet(k, v) { try { W.localStorage.setItem(k, v); return true; } catch (e) { return false; } }
@@ -874,6 +873,25 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
   function deleteSlot(name) {
     safeSet(LS_SLOTS, JSON.stringify(listSlots().filter(function (s) { return s.name !== name; })));
   }
+  function listSwatches() {
+    try {
+      return (JSON.parse(safeGet(LS_SWATCH) || '[]') || [])
+        .map(normHex).filter(Boolean);
+    } catch (e) { return []; }
+  }
+  function addSwatch(hex) {
+    hex = normHex(hex);
+    if (!hex) return false;
+    var all = listSwatches();
+    if (all.indexOf(hex) >= 0) return false;
+    all.unshift(hex);
+    safeSet(LS_SWATCH, JSON.stringify(all.slice(0, 40)));
+    return true;
+  }
+  function removeSwatch(hex) {
+    safeSet(LS_SWATCH, JSON.stringify(listSwatches().filter(function (c) { return c !== hex; })));
+  }
+
   function autosave() { safeSet(LS_AUTO, JSON.stringify(S.doc)); }
   function loadAutosave() {
     var raw = safeGet(LS_AUTO);
@@ -903,24 +921,11 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     var st = d.style || {};
     for (var p in out.style) if (st[p] !== undefined) out.style[p] = st[p];
     if (!THEMES[out.style.theme]) out.style.theme = 'mapchart';
-    out.keyframes = (d.keyframes || []).map(function (k, i) {
-      var c = {};
-      for (var r in (k.colors || {})) { var hh = normHex(k.colors[r]); if (hh) c[r] = hh; }
-      return {
-        date: k.date || ('Frame ' + (i + 1)), title: k.title || '', note: k.note || '',
-        colors: c,
-        groups: (k.groups || []).map(function (g) {
-          return { color: normHex(g.color) || '#888888', label: g.label || '' };
-        })
-      };
-    });
-    out.factions = d.factions || [];
     return out;
   }
   function setDoc(d) {
     S.doc = migrate(d);
     resetHistory();
-    S.activeKf = -1; S.playhead = 0; S.playing = false;
     S.selection = {};
     W.TM.emit('doc');
   }
@@ -938,6 +943,8 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     normHex: normHex, groupFor: groupFor, ensureGroup: ensureGroup,
     countColor: countColor, pruneGroups: pruneGroups,
     listSlots: listSlots, saveSlot: saveSlot, loadSlot: loadSlot, deleteSlot: deleteSlot,
+    listSwatches: listSwatches, addSwatch: addSwatch, removeSwatch: removeSwatch,
+    noteColor: noteColor,
     autosave: autosave, loadAutosave: loadAutosave
   };
 })(window);
@@ -1266,9 +1273,6 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
 
   /* ---------------------------------------------------------------- repaint */
   function repaint() {
-    // while the timeline is being scrubbed the screen shows interpolated
-    // colours that are not in doc.colors -- keep showing those.
-    if (S.scrubbing && TM.timeline) { paintFrom(TM.timeline.colorsAt(S.playhead)); return; }
     var t = theme();
     for (var id in paths) {
       var f = S.doc.colors[id] || t.unpainted;
@@ -1308,7 +1312,7 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
       p.setAttribute('stroke-dasharray', c ? 'none' : (1.6 * ss) + ' ' + (1.2 * ss));
     }
   }
-  /** Paint straight from a colour map (used by timeline playback). */
+  /** Paint straight from a colour map (used by the exporter). */
   function paintFrom(colorMap) {
     var t = theme();
     for (var oid in occPaths) { occPaths[oid].style.display = 'none'; occPaths[oid].__o = null; }
@@ -1406,7 +1410,6 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     var ids = idsFor(id, ev);
     if (!ids.length) return;
     var erase = ev.altKey || ev.ctrlKey || ev.metaKey;
-    S.scrubbing = false;
     if (first) TM.state.pushUndo();
     var hex = erase ? null : S.activeColor;
     for (var i = 0; i < ids.length; i++) {
@@ -1444,7 +1447,6 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
       }
       var cid = cityAt(e);
       if (cid && S.doc.style.showCityDistricts) {
-        S.scrubbing = false;
         TM.state.setCityColor([cid],
           (e.altKey || e.ctrlKey || e.metaKey) ? null : S.activeColor);
         return;
@@ -1557,673 +1559,9 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
 
 </script>
 <script>
-/* ---- js/timeline.js ---- */
-/* ==========================================================================
-   timeline.js -- keyframes, playback with cross-fade, built-in TES scenarios
-   ========================================================================== */
-(function (W) {
-  'use strict';
-  var TM = W.TM, S = TM.S;
-
-  /* ------------------------------------------------------------ colour math */
-  function hex2rgb(h) {
-    h = TM.state.normHex(h) || '#888888';
-    return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-  }
-  function rgb2hex(c) {
-    return '#' + c.map(function (v) {
-      v = Math.max(0, Math.min(255, Math.round(v)));
-      return (v < 16 ? '0' : '') + v.toString(16);
-    }).join('');
-  }
-  function mix(a, b, t) {
-    var x = hex2rgb(a), y = hex2rgb(b);
-    return rgb2hex([x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t]);
-  }
-
-  /* -------------------------------------------------------------- keyframes */
-  function frames() { return S.doc.keyframes; }
-
-  function addKeyframe(date, title, note, at) {
-    var kf = {
-      date: date || nextDate(),
-      title: title || '',
-      note: note || '',
-      colors: JSON.parse(JSON.stringify(S.doc.colors)),
-      groups: JSON.parse(JSON.stringify(S.doc.groups))
-    };
-    var i = (at === undefined || at < 0) ? frames().length : at;
-    frames().splice(i, 0, kf);
-    S.activeKf = i; S.dirty = true;
-    TM.emit('timeline');
-    return i;
-  }
-  function nextDate() {
-    var f = frames();
-    if (!f.length) return '2E 582';
-    var m = /^([1-4])E\s+(\d+)/.exec(f[f.length - 1].date || '');
-    if (m) return m[1] + 'E ' + (parseInt(m[2], 10) + 25);
-    return 'Frame ' + (f.length + 1);
-  }
-  function updateKeyframe(i) {
-    var kf = frames()[i]; if (!kf) return;
-    kf.colors = JSON.parse(JSON.stringify(S.doc.colors));
-    kf.groups = JSON.parse(JSON.stringify(S.doc.groups));
-    S.dirty = true; TM.emit('timeline');
-  }
-  function removeKeyframe(i) {
-    frames().splice(i, 1);
-    if (S.activeKf >= frames().length) S.activeKf = frames().length - 1;
-    S.playhead = Math.min(S.playhead, Math.max(0, frames().length - 1));
-    S.dirty = true; TM.emit('timeline');
-  }
-  function moveKeyframe(i, d) {
-    var f = frames(), j = i + d;
-    if (j < 0 || j >= f.length) return;
-    var t = f[i]; f[i] = f[j]; f[j] = t;
-    S.activeKf = j; S.dirty = true; TM.emit('timeline');
-  }
-  function loadKeyframe(i) {
-    var kf = frames()[i]; if (!kf) return;
-    S.scrubbing = false;
-    TM.state.pushUndo();
-    S.doc.colors = JSON.parse(JSON.stringify(kf.colors));
-    S.doc.groups = JSON.parse(JSON.stringify(kf.groups));
-    S.activeKf = i; S.playhead = i;
-    TM.emit('paint'); TM.emit('timeline');
-  }
-
-  /* ---------------------------------------------------------------- playback */
-  var raf = null, lastT = 0;
-
-  /** Colour map at fractional playhead p, cross-fading between keyframes. */
-  function colorsAt(p) {
-    var f = frames();
-    if (!f.length) return S.doc.colors;
-    if (f.length === 1) return f[0].colors;
-    var i = Math.max(0, Math.min(f.length - 1, Math.floor(p)));
-    var t = p - i;
-    if (t <= 0.001 || i >= f.length - 1) return f[Math.min(i, f.length - 1)].colors;
-    if (!S.doc.style.crossfade) return f[i].colors;
-    var A = f[i].colors, B = f[i + 1].colors, out = {}, un = null;
-    var t2 = t * t * (3 - 2 * t);                 // smoothstep
-    for (var id in S.regions) {
-      var a = A[id], b = B[id];
-      if (!a && !b) continue;
-      if (a && b) { out[id] = a === b ? a : mix(a, b, t2); }
-      else if (a) { un = un || (TM.THEMES[S.doc.style.theme] || {}).unpainted || '#e3e3e3';
-                    out[id] = mix(a, un, t2); }
-      else { un = un || (TM.THEMES[S.doc.style.theme] || {}).unpainted || '#e3e3e3';
-             out[id] = mix(un, b, t2); }
-    }
-    return out;
-  }
-  function frameAt(p) {
-    var f = frames();
-    if (!f.length) return null;
-    return f[Math.max(0, Math.min(f.length - 1, Math.round(p - 0.001)))];
-  }
-  function seek(p) {
-    var f = frames();
-    S.scrubbing = true;
-    S.playhead = Math.max(0, Math.min(Math.max(0, f.length - 1), p));
-    TM.view.paintFrom(colorsAt(S.playhead));
-    TM.emit('playhead');
-  }
-  function play() {
-    if (frames().length < 2) return;
-    if (S.playhead >= frames().length - 1) S.playhead = 0;
-    S.playing = true; lastT = 0;
-    TM.emit('playstate');
-    raf = W.requestAnimationFrame(step);
-  }
-  function pause() {
-    S.playing = false;
-    if (raf) W.cancelAnimationFrame(raf);
-    raf = null;
-    TM.emit('playstate');
-  }
-  function step(ts) {
-    if (!S.playing) return;
-    if (!lastT) lastT = ts;
-    var dt = Math.min(0.25, (ts - lastT) / 1000);
-    lastT = ts;
-    var spf = Math.max(0.15, S.doc.style.secPerFrame || 1.6);
-    seek(S.playhead + dt / spf);
-    if (S.playhead >= frames().length - 1) {
-      if (S.doc.style.loopPlay) { S.playhead = 0; }
-      else { pause(); return; }
-    }
-    raf = W.requestAnimationFrame(step);
-  }
-  function stopAndRestore() {
-    pause();
-    S.scrubbing = false;
-    TM.view.repaint();
-    TM.emit('playhead');
-  }
-
-  /* --------------------------------------------------------------- resolver */
-  var byName = null;
-  /** Region ids for a name.  A reference region that was split into several
-      subdivisions answers to its own name, so scenarios keep working. */
-  function regionIdsByName(n) {
-    if (!byName) {
-      byName = {};
-      for (var id in S.regions) {
-        var r = S.regions[id];
-        [r.name, r.base].forEach(function (k) {
-          if (!k) return;
-          k = k.toLowerCase();
-          (byName[k] = byName[k] || []).push(id);
-        });
-      }
-    }
-    var hit = byName[String(n).toLowerCase()];
-    if (hit) return hit;
-    return S.regions[n] ? [n] : [];
-  }
-  /** Expand a scenario assignment object into a full colour map. */
-  function resolve(assign) {
-    var out = {};
-    Object.keys(assign).forEach(function (key) {
-      var col = assign[key];
-      if (key === '*') {
-        for (var id in S.regions) if (col) out[id] = col;
-        return;
-      }
-      var m = /^([PR]):(.+)$/.exec(key);
-      if (!m) return;
-      if (m[1] === 'P') {
-        (S.byProvince[m[2]] || []).forEach(function (id) {
-          if (col) out[id] = col; else delete out[id];
-        });
-      } else {
-        regionIdsByName(m[2]).forEach(function (rid) {
-          if (col) out[rid] = col; else delete out[rid];
-        });
-      }
-    });
-    return out;
-  }
-
-  /* -------------------------------------------------------------- scenarios */
-  var C = {
-    imp: '#8c2f2a', nord: '#3d6f9e', dun: '#5d3a7a', arg: '#2f6b4a',
-    bret: '#2f5f8c', red: '#b5852f', khaj: '#c9a13f', bosmer: '#4a7a35',
-    altmer: '#c9a0c0', dom: '#c8b038', pact: '#3f7a6e', cov: '#2f5f8c',
-    orc: '#6b7a4a', akav: '#7a2f2f', ind: '#8a8578', tribunal: '#6d4a8f',
-    neutral: '#d9d4c6'
-  };
-  var SCENARIOS = [
-    {
-      id: 'empires',
-      name: 'Ages of Empire (1E - 4E)',
-      note: 'Nine snapshots from the Alessian rebellion to the aftermath of the Great War.',
-      frames: [
-        { date: '1E 243', title: 'The Alessian Rebellion',
-          note: 'Alessia\'s slave revolt takes the Heartlands; the Ayleid city-states fall.',
-          groups: [[C.imp, 'Alessian Empire'], [C.nord, 'Nordic holdings'], [C.dun, 'Chimer / Dunmer'], [C.neutral, 'Unaligned']],
-          assign: { '*': C.neutral, 'P:Cyrodiil': C.imp, 'P:Skyrim': C.nord,
-                    'P:Morrowind': C.dun, 'R:Bruma': C.nord, 'R:Jerall Mountains': C.nord } },
-        { date: '1E 660', title: 'First Empire of the Nords',
-          note: 'Skyrim rules from High Rock to Morrowind - until Nord Ysgramor\'s heirs are broken at Red Mountain.',
-          groups: [[C.nord, 'First Empire of the Nords'], [C.imp, 'Alessian Empire'], [C.dun, 'Chimer / Dunmer'], [C.neutral, 'Unaligned']],
-          assign: { '*': C.neutral, 'P:Skyrim': C.nord, 'P:High Rock': C.nord,
-                    'P:Morrowind': C.nord, 'P:Cyrodiil': C.imp,
-                    'R:Vvardenfell': C.dun, 'R:Red Mountain': C.dun, 'R:Ashlands': C.dun,
-                    'R:Sheogorad': C.dun, 'R:Grazelands': C.dun, 'R:Azura\'s Coast': C.dun,
-                    'R:Molag Amur': C.dun, 'R:Ascadian Isles': C.dun, 'R:Bitter Coast': C.dun,
-                    'R:West Gash': C.dun, 'R:Sadrith Mora': C.dun, 'R:Telvanni Peninsula': C.dun,
-                    'R:Port Telvannis': C.dun, 'R:Firewatch': C.dun, 'R:Necrom': C.dun } },
-        { date: '1E 1029', title: 'The Alessian Order',
-          note: 'Marukhati zealotry spreads west; the Order dominates Cyrodiil and presses High Rock.',
-          groups: [[C.imp, 'Alessian Order'], [C.nord, 'Skyrim'], [C.dun, 'Resdayn'], [C.bret, 'Breton kingdoms'], [C.neutral, 'Unaligned']],
-          assign: { '*': C.neutral, 'P:Cyrodiil': C.imp, 'P:Skyrim': C.nord,
-                    'P:Morrowind': C.dun, 'P:High Rock': C.bret,
-                    'R:Bangkorai': C.imp, 'R:Craglorn': C.imp, 'R:Elinhir': C.imp } },
-        { date: '1E 2703', title: 'Reman\'s Second Empire',
-          note: 'Reman Cyrodiil unites Tamriel after Pale Pass. Only Morrowind holds out.',
-          groups: [[C.imp, 'Second Empire'], [C.dun, 'Resdayn (independent)']],
-          assign: { '*': C.imp, 'P:Morrowind': C.dun } },
-        { date: '2E 431', title: 'The Akaviri Potentate',
-          note: 'Versidue-Shaie rules in the Empire\'s name; Morrowind joins by treaty.',
-          groups: [[C.akav, 'Akaviri Potentate'], [C.dun, 'Morrowind (Armistice)']],
-          assign: { '*': C.akav, 'P:Morrowind': C.dun } },
-        { date: '2E 582', title: 'The Three Banners War',
-          note: 'The Interregnum: three alliances contend for the Ruby Throne while Molag Bal\'s Planemeld looms.',
-          groups: [[C.pact, 'Ebonheart Pact'], [C.cov, 'Daggerfall Covenant'],
-                   [C.dom, 'Aldmeri Dominion'], [C.imp, 'Imperial (Tharn)'], [C.neutral, 'Contested']],
-          assign: { '*': C.neutral,
-                    'P:Morrowind': C.pact, 'P:Skyrim': C.pact, 'P:Black Marsh': C.pact,
-                    'P:High Rock': C.cov, 'P:Hammerfell': C.cov,
-                    'P:Alinor': C.dom, 'P:Valenwood': C.dom, 'P:Anequina': C.dom, 'P:Pellitine': C.dom,
-                    'P:Cyrodiil': C.imp,
-                    'R:Bruma': C.neutral, 'R:Chorrol': C.neutral, 'R:Cheydinhal': C.neutral,
-                    'R:Bravil': C.neutral, 'R:Nibenay Valley': C.neutral, 'R:Kvatch': C.neutral,
-                    'R:Leyawiin': C.neutral, 'R:West Weald': C.neutral } },
-        { date: '2E 896', title: 'Tiber Septim\'s Conquest',
-          note: 'Talos takes the west, then Morrowind by armistice. The Third Empire is proclaimed.',
-          groups: [[C.imp, 'Third Empire'], [C.dun, 'Morrowind (Armistice)'], [C.dom, 'Aldmeri holdouts']],
-          assign: { '*': C.imp, 'P:Morrowind': C.dun,
-                    'P:Alinor': C.dom, 'R:Dusk': C.dom, 'R:Alinor': C.dom } },
-        { date: '3E 433', title: 'The Third Empire at its Height',
-          note: 'Uriel Septim VII\'s Empire spans all nine provinces on the eve of the Oblivion Crisis.',
-          groups: [[C.imp, 'Third Empire']],
-          assign: { '*': C.imp } },
-        { date: '4E 201', title: 'After the Great War',
-          note: 'The Concordat leaves a hollow Empire; the Dominion holds the south, Hammerfell and Morrowind stand alone.',
-          groups: [[C.imp, 'Empire of Cyrodiil'], [C.dom, 'Aldmeri Dominion'],
-                   [C.red, 'Hammerfell (independent)'], [C.dun, 'Morrowind (independent)'],
-                   [C.arg, 'An-Xileel (Argonia)']],
-          assign: { '*': C.imp,
-                    'P:Alinor': C.dom, 'P:Valenwood': C.dom, 'P:Anequina': C.dom, 'P:Pellitine': C.dom,
-                    'P:Hammerfell': C.red, 'P:Morrowind': C.dun, 'P:Black Marsh': C.arg,
-                    'R:Blackwood': C.arg, 'R:Leyawiin': C.arg,
-                    'R:Solstheim': C.dun } }
-      ]
-    },
-    {
-      id: 'banners',
-      name: 'The Three Banners War (2E 582)',
-      note: 'Six turns of the Alliance War as the front line moves across Cyrodiil.',
-      frames: (function () {
-        var base = {
-          'P:Morrowind': C.pact, 'P:Skyrim': C.pact, 'P:Black Marsh': C.pact,
-          'P:High Rock': C.cov, 'P:Hammerfell': C.cov,
-          'P:Alinor': C.dom, 'P:Valenwood': C.dom, 'P:Anequina': C.dom, 'P:Pellitine': C.dom
-        };
-        var gs = [[C.pact, 'Ebonheart Pact'], [C.cov, 'Daggerfall Covenant'],
-                  [C.dom, 'Aldmeri Dominion'], [C.neutral, 'Contested / Imperial']];
-        function frame(date, title, note, cyro) {
-          var a = { '*': C.neutral };
-          for (var k in base) a[k] = base[k];
-          for (var j in cyro) a[j] = cyro[j];
-          return { date: date, title: title, note: note, groups: gs, assign: a };
-        }
-        return [
-          frame('2E 582, Sun\'s Dawn', 'The Alliances Muster',
-            'Three armies cross into Cyrodiil. The Imperial City still flies Tharn\'s banner.', {}),
-          frame('2E 582, Rain\'s Hand', 'Northern Push',
-            'Pact legions come down the Jeralls; the Covenant secures the Gold Coast.', {
-              'R:Bruma': C.pact, 'R:Jerall Mountains': C.pact, 'R:Cheydinhal': C.pact,
-              'R:Gold Coast': C.cov, 'R:Kvatch': C.cov, 'R:Chorrol': C.cov,
-              'R:Leyawiin': C.dom, 'R:Nibenay Valley': C.dom }),
-          frame('2E 582, Second Seed', 'The Dominion Advance',
-            'Aldmeri forces sweep up the Niben and threaten the Heartlands.', {
-              'R:Bruma': C.pact, 'R:Jerall Mountains': C.pact, 'R:Cheydinhal': C.pact,
-              'R:Gold Coast': C.cov, 'R:Kvatch': C.cov, 'R:Chorrol': C.cov,
-              'R:Colovian Highlands': C.cov,
-              'R:Leyawiin': C.dom, 'R:Nibenay Valley': C.dom, 'R:Nibenay Basin': C.dom,
-              'R:Blackwood': C.dom, 'R:West Weald': C.dom, 'R:Strident Coast': C.dom }),
-          frame('2E 582, Mid Year', 'Siege of the Imperial City',
-            'The Elder Council falls. All three banners plant themselves in the White-Gold Tower.', {
-              'R:Bruma': C.pact, 'R:Jerall Mountains': C.pact, 'R:Cheydinhal': C.pact,
-              'R:Heartlands': C.pact, 'R:Imperial City': C.pact,
-              'R:Gold Coast': C.cov, 'R:Kvatch': C.cov, 'R:Chorrol': C.cov,
-              'R:Colovian Highlands': C.cov, 'R:Great Forest': C.cov,
-              'R:Leyawiin': C.dom, 'R:Nibenay Valley': C.dom, 'R:Nibenay Basin': C.dom,
-              'R:Blackwood': C.dom, 'R:West Weald': C.dom, 'R:Strident Coast': C.dom }),
-          frame('2E 582, Frostfall', 'Covenant Counter-Attack',
-            'Emeric drives east; the Pact loses the Heartlands but keeps the passes.', {
-              'R:Bruma': C.pact, 'R:Jerall Mountains': C.pact, 'R:Cheydinhal': C.pact,
-              'R:Gold Coast': C.cov, 'R:Kvatch': C.cov, 'R:Chorrol': C.cov,
-              'R:Colovian Highlands': C.cov, 'R:Great Forest': C.cov,
-              'R:Heartlands': C.cov, 'R:Imperial City': C.cov, 'R:West Weald': C.cov,
-              'R:Leyawiin': C.dom, 'R:Nibenay Valley': C.dom, 'R:Nibenay Basin': C.dom,
-              'R:Blackwood': C.dom, 'R:Strident Coast': C.dom }),
-          frame('2E 583, Morning Star', 'Stalemate',
-            'The war grinds on. No banner holds the Ruby Throne for long.', {
-              'R:Bruma': C.pact, 'R:Jerall Mountains': C.pact, 'R:Cheydinhal': C.pact,
-              'R:Heartlands': C.dom, 'R:Imperial City': C.dom,
-              'R:Gold Coast': C.cov, 'R:Kvatch': C.cov, 'R:Chorrol': C.cov,
-              'R:Colovian Highlands': C.cov, 'R:Great Forest': C.cov, 'R:West Weald': C.cov,
-              'R:Leyawiin': C.dom, 'R:Nibenay Valley': C.dom, 'R:Nibenay Basin': C.dom,
-              'R:Blackwood': C.dom, 'R:Strident Coast': C.dom })
-        ];
-      })()
-    },
-    {
-      id: 'greatwar',
-      name: 'The Great War (4E 171 - 175)',
-      note: 'The Dominion invasion of the Empire, and the peace that followed.',
-      frames: [
-        { date: '4E 170', title: 'The Empire Before',
-          note: 'Titus Mede II rules a diminished but whole Empire; the Dominion has re-formed in the south.',
-          groups: [[C.imp, 'Empire'], [C.dom, 'Aldmeri Dominion'], [C.dun, 'Morrowind'], [C.arg, 'Black Marsh']],
-          assign: { '*': C.imp, 'P:Alinor': C.dom, 'P:Valenwood': C.dom,
-                    'P:Morrowind': C.dun, 'P:Black Marsh': C.arg } },
-        { date: '4E 171, Second Seed', title: 'The Ultimatum Refused',
-          note: 'Dominion armies pour into Cyrodiil and Hammerfell.',
-          groups: [[C.imp, 'Empire'], [C.dom, 'Aldmeri Dominion'], [C.dun, 'Morrowind'], [C.arg, 'Black Marsh']],
-          assign: { '*': C.imp, 'P:Alinor': C.dom, 'P:Valenwood': C.dom,
-                    'P:Anequina': C.dom, 'P:Pellitine': C.dom, 'P:Morrowind': C.dun, 'P:Black Marsh': C.arg,
-                    'R:Leyawiin': C.dom, 'R:Blackwood': C.dom, 'R:Strident Coast': C.dom,
-                    'R:Rihad': C.dom, 'R:Taneth': C.dom, 'R:Gilane': C.dom } },
-        { date: '4E 174, Sun\'s Dusk', title: 'The Sack of the Imperial City',
-          note: 'Lord Naarifin holds the capital. The Emperor withdraws to Skyrim to rebuild.',
-          groups: [[C.imp, 'Empire'], [C.dom, 'Aldmeri Dominion'], [C.dun, 'Morrowind'], [C.arg, 'Black Marsh']],
-          assign: { '*': C.imp, 'P:Alinor': C.dom, 'P:Valenwood': C.dom,
-                    'P:Anequina': C.dom, 'P:Pellitine': C.dom, 'P:Morrowind': C.dun, 'P:Black Marsh': C.arg,
-                    'R:Leyawiin': C.dom, 'R:Blackwood': C.dom, 'R:Strident Coast': C.dom,
-                    'R:Imperial City': C.dom, 'R:Heartlands': C.dom, 'R:Nibenay Basin': C.dom,
-                    'R:Nibenay Valley': C.dom, 'R:West Weald': C.dom, 'R:Kvatch': C.dom,
-                    'R:Gold Coast': C.dom, 'R:Rihad': C.dom, 'R:Taneth': C.dom,
-                    'R:Gilane': C.dom, 'R:Hegathe': C.dom, 'R:Abibon-Gora': C.dom,
-                    'R:Khefrem': C.dom, 'R:Lainlyn': C.dom } },
-        { date: '4E 175, Last Seed', title: 'The Battle of the Red Ring',
-          note: 'The Legions retake the city and destroy Naarifin\'s army.',
-          groups: [[C.imp, 'Empire'], [C.dom, 'Aldmeri Dominion'], [C.dun, 'Morrowind'], [C.arg, 'Black Marsh']],
-          assign: { '*': C.imp, 'P:Alinor': C.dom, 'P:Valenwood': C.dom,
-                    'P:Anequina': C.dom, 'P:Pellitine': C.dom, 'P:Morrowind': C.dun, 'P:Black Marsh': C.arg,
-                    'R:Leyawiin': C.dom, 'R:Blackwood': C.dom,
-                    'R:Rihad': C.dom, 'R:Taneth': C.dom, 'R:Gilane': C.dom,
-                    'R:Hegathe': C.dom, 'R:Abibon-Gora': C.dom } },
-        { date: '4E 175, Evening Star', title: 'The White-Gold Concordat',
-          note: 'Peace at a price: Talos worship banned, southern Hammerfell ceded.',
-          groups: [[C.imp, 'Empire'], [C.dom, 'Aldmeri Dominion'], [C.dun, 'Morrowind'], [C.arg, 'Black Marsh']],
-          assign: { '*': C.imp, 'P:Alinor': C.dom, 'P:Valenwood': C.dom,
-                    'P:Anequina': C.dom, 'P:Pellitine': C.dom, 'P:Morrowind': C.dun, 'P:Black Marsh': C.arg,
-                    'R:Rihad': C.dom, 'R:Taneth': C.dom, 'R:Gilane': C.dom,
-                    'R:Hegathe': C.dom, 'R:Abibon-Gora': C.dom, 'R:Khefrem': C.dom } },
-        { date: '4E 180', title: 'Hammerfell Stands Alone',
-          note: 'The Forebears and Crowns repudiate the Concordat, expel the Dominion and leave the Empire.',
-          groups: [[C.imp, 'Empire'], [C.dom, 'Aldmeri Dominion'], [C.red, 'Hammerfell (independent)'],
-                   [C.dun, 'Morrowind'], [C.arg, 'Black Marsh']],
-          assign: { '*': C.imp, 'P:Alinor': C.dom, 'P:Valenwood': C.dom,
-                    'P:Anequina': C.dom, 'P:Pellitine': C.dom, 'P:Hammerfell': C.red, 'P:Morrowind': C.dun,
-                    'P:Black Marsh': C.arg } }
-      ]
-    }
-  ];
-
-  function loadScenario(id, append) {
-    var sc = SCENARIOS.find(function (s) { return s.id === id; });
-    if (!sc) return false;
-    byName = null;
-    if (!append) S.doc.keyframes = [];
-    sc.frames.forEach(function (f) {
-      S.doc.keyframes.push({
-        date: f.date, title: f.title, note: f.note,
-        colors: resolve(f.assign),
-        groups: (f.groups || []).map(function (g) { return { color: g[0], label: g[1] }; })
-      });
-    });
-    S.doc.name = sc.name;
-    if (S.doc.keyframes.length) {
-      var k = S.doc.keyframes[0];
-      S.doc.colors = JSON.parse(JSON.stringify(k.colors));
-      S.doc.groups = JSON.parse(JSON.stringify(k.groups));
-      S.activeKf = 0; S.playhead = 0;
-    }
-    S.scrubbing = false;
-    TM.state.resetHistory();
-    S.dirty = true;
-    TM.emit('paint'); TM.emit('timeline');
-    return true;
-  }
-
-  TM.timeline = {
-    frames: frames, add: addKeyframe, update: updateKeyframe, remove: removeKeyframe,
-    move: moveKeyframe, load: loadKeyframe, seek: seek, play: play, pause: pause,
-    stop: stopAndRestore, colorsAt: colorsAt, frameAt: frameAt, mix: mix,
-    resolve: resolve, scenarios: SCENARIOS, loadScenario: loadScenario,
-    palette: C
-  };
-})(window);
-
-</script>
-<script>
-/* ---- js/sim.js ---- */
-/* ==========================================================================
-   sim.js -- history simulator: factions grow over the region adjacency graph
-   and every turn is recorded as a timeline keyframe.
-   ========================================================================== */
-(function (W) {
-  'use strict';
-  var TM = W.TM, S = TM.S;
-
-  /* deterministic PRNG so a given seed always replays the same history */
-  function mulberry32(a) {
-    return function () {
-      a |= 0; a = a + 0x6D2B79F5 | 0;
-      var t = Math.imul(a ^ a >>> 15, 1 | a);
-      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-      return ((t ^ t >>> 14) >>> 0) / 4294967296;
-    };
-  }
-  function hashStr(s) {
-    var h = 2166136261;
-    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
-    return h >>> 0;
-  }
-
-  function defaults() {
-    return {
-      seed: 'tamriel',
-      steps: 12,
-      startEra: '2E', startYear: 580, yearsPerStep: 4,
-      expansion: 0.55,        // chance an attempt on empty land succeeds
-      aggression: 0.28,       // chance of attacking a rival region
-      seaChance: 0.22,        // multiplier applied to sea crossings
-      attempts: 3,            // frontier attempts per faction per turn
-      revolt: 0.03,           // chance an isolated holding breaks away
-      neutralColor: '#d9d4c6',
-      neutralLabel: 'Unclaimed'
-    };
-  }
-
-  function newFaction(i) {
-    var pal = TM.PALETTES.Banners;
-    return {
-      name: 'Faction ' + (i + 1),
-      color: pal[i % pal.length],
-      seeds: [],
-      power: 1.0
-    };
-  }
-
-  /** Run the simulation; returns the generated keyframes (also installed). */
-  function run(cfg, factions, opts) {
-    cfg = Object.assign(defaults(), cfg || {});
-    factions = (factions || []).filter(function (f) { return f.seeds && f.seeds.length; });
-    if (!factions.length) return null;
-
-    var rnd = mulberry32(hashStr(String(cfg.seed)));
-    var owner = {};                                    // regionId -> faction index
-    factions.forEach(function (f, i) {
-      f.seeds.forEach(function (id) { if (S.regions[id]) owner[id] = i; });
-    });
-
-    var groups = factions.map(function (f) { return { color: f.color, label: f.name }; });
-    if (cfg.neutralColor) groups.push({ color: cfg.neutralColor, label: cfg.neutralLabel });
-
-    function snapshot(date, title, note) {
-      var colors = {};
-      for (var id in S.regions) {
-        colors[id] = (owner[id] !== undefined) ? factions[owner[id]].color : cfg.neutralColor;
-      }
-      return { date: date, title: title, note: note, colors: colors,
-               groups: JSON.parse(JSON.stringify(groups)) };
-    }
-    function dateFor(step) {
-      return cfg.startEra + ' ' + (cfg.startYear + step * cfg.yearsPerStep);
-    }
-    function isSea(a, b) {
-      var r = S.regions[a];
-      return !!(r.nbSea && r.nbSea.indexOf(b) >= 0);
-    }
-    function held(fi) {
-      var n = 0; for (var id in owner) if (owner[id] === fi) n++; return n;
-    }
-    function support(id, fi) {                        // friendly neighbours
-      var r = S.regions[id], n = 0;
-      for (var i = 0; i < r.nb.length; i++) if (owner[r.nb[i]] === fi) n++;
-      return n;
-    }
-
-    var frames = [snapshot(dateFor(0), 'Beginnings',
-      factions.map(function (f) { return f.name + ' (' + f.seeds.length + ')'; }).join(' · '))];
-
-    var order = factions.map(function (_, i) { return i; });
-    for (var step = 1; step <= cfg.steps; step++) {
-      // shuffle turn order each round
-      for (var i = order.length - 1; i > 0; i--) {
-        var j = Math.floor(rnd() * (i + 1)); var t = order[i]; order[i] = order[j]; order[j] = t;
-      }
-      var events = [];
-      order.forEach(function (fi) {
-        var f = factions[fi];
-        // build the frontier: neighbours of held regions that are not ours
-        var frontier = [];
-        for (var id in owner) {
-          if (owner[id] !== fi) continue;
-          var nb = S.regions[id].nb;
-          for (var k = 0; k < nb.length; k++) {
-            if (owner[nb[k]] === fi) continue;
-            frontier.push({ from: id, to: nb[k] });
-          }
-        }
-        if (!frontier.length) return;
-        var tries = Math.max(1, Math.round(cfg.attempts * (f.power || 1)));
-        for (var a = 0; a < tries && frontier.length; a++) {
-          var pick = frontier.splice(Math.floor(rnd() * frontier.length), 1)[0];
-          var tgt = pick.to, def = owner[tgt];
-          var p = (def === undefined) ? cfg.expansion : cfg.aggression;
-          if (isSea(pick.from, tgt)) p *= cfg.seaChance;
-          if (def !== undefined) {
-            // defenders are harder to shift when they hold the surrounding land
-            p /= (1 + 0.42 * support(tgt, def));
-            p *= (f.power || 1) / (factions[def].power || 1);
-          }
-          if (rnd() < p) {
-            owner[tgt] = fi;
-            if (def !== undefined) {
-              events.push(f.name + ' takes ' + S.regions[tgt].name +
-                          ' from ' + factions[def].name);
-            } else {
-              events.push(f.name + ' annexes ' + S.regions[tgt].name);
-            }
-          }
-        }
-      });
-      // isolated holdings can break away
-      if (cfg.revolt > 0) {
-        for (var rid in owner) {
-          var fi2 = owner[rid];
-          if (support(rid, fi2) === 0 && rnd() < cfg.revolt) {
-            events.push(S.regions[rid].name + ' revolts against ' + factions[fi2].name);
-            delete owner[rid];
-          }
-        }
-      }
-      var counts = factions.map(function (f, i2) { return f.name + ' ' + held(i2); }).join('  ·  ');
-      frames.push(snapshot(dateFor(step),
-        'Turn ' + step,
-        (events.slice(0, 3).join('. ') || 'A quiet season.') +
-        (events.length > 3 ? ' (+' + (events.length - 3) + ' more)' : '') + '  —  ' + counts));
-    }
-
-    if (!opts || opts.install !== false) {
-      S.doc.keyframes = frames;
-      S.doc.factions = factions;
-      S.doc.name = 'Simulation · ' + cfg.seed;
-      var k0 = frames[0];
-      S.doc.colors = JSON.parse(JSON.stringify(k0.colors));
-      S.doc.groups = JSON.parse(JSON.stringify(k0.groups));
-      S.activeKf = 0; S.playhead = 0;
-      TM.state.resetHistory();
-      S.dirty = true;
-      TM.emit('paint'); TM.emit('timeline');
-    }
-    return frames;
-  }
-
-  /** Seed factions from the current painting: one faction per legend group. */
-  function factionsFromPainting() {
-    var byColor = {};
-    for (var id in S.doc.colors) {
-      var c = S.doc.colors[id];
-      (byColor[c] = byColor[c] || []).push(id);
-    }
-    return Object.keys(byColor).map(function (c, i) {
-      var g = TM.state.groupFor(c);
-      return { name: (g && g.label) || ('Faction ' + (i + 1)), color: c,
-               seeds: byColor[c], power: 1 };
-    });
-  }
-
-  /** Handy presets: the historical great powers, seeded on their heartlands. */
-  var PRESETS = {
-    'Three Alliances': [
-      { name: 'Ebonheart Pact', color: '#3f7a6e', power: 1,
-        provinces: ['Morrowind', 'Skyrim', 'Black Marsh'] },
-      { name: 'Daggerfall Covenant', color: '#2f5f8c', power: 1,
-        provinces: ['High Rock', 'Hammerfell'] },
-      { name: 'Aldmeri Dominion', color: '#c8b038', power: 1,
-        provinces: ['Alinor', 'Valenwood', 'Anequina', 'Pellitine'] }
-    ],
-    'Nine Provinces': [
-      { name: 'High Rock', color: '#2f5f8c', provinces: ['High Rock'] },
-      { name: 'Hammerfell', color: '#b5852f', provinces: ['Hammerfell'] },
-      { name: 'Skyrim', color: '#3d6f9e', provinces: ['Skyrim'] },
-      { name: 'Cyrodiil', color: '#8c2f2a', provinces: ['Cyrodiil'] },
-      { name: 'Morrowind', color: '#5d3a7a', provinces: ['Morrowind'] },
-      { name: 'Black Marsh', color: '#2f6b4a', provinces: ['Black Marsh'] },
-      { name: 'Elsweyr', color: '#c9a13f', provinces: ['Anequina', 'Pellitine'] },
-      { name: 'Valenwood', color: '#4a7a35', provinces: ['Valenwood'] },
-      { name: 'Summerset', color: '#c9a0c0', provinces: ['Alinor'] }
-    ],
-    'Capitals Only': [
-      { name: 'Cyrodiil', color: '#8c2f2a', regions: ['Heartlands'] },
-      { name: 'Skyrim', color: '#3d6f9e', regions: ['Whiterun Hold'] },
-      { name: 'Morrowind', color: '#5d3a7a', regions: ['Deshaan'] },
-      { name: 'High Rock', color: '#2f5f8c', regions: ['Stormhaven'] },
-      { name: 'Hammerfell', color: '#b5852f', regions: ['Hegathe'] },
-      { name: 'Alinor', color: '#c9a0c0', regions: ['Summerset'] },
-      { name: 'Valenwood', color: '#4a7a35', regions: ['Grahtwood'] },
-      { name: 'Elsweyr', color: '#c9a13f', regions: ['Torval'] },
-      { name: 'Black Marsh', color: '#2f6b4a', regions: ['Helstrom'] }
-    ]
-  };
-
-  function expandPreset(name) {
-    var def = PRESETS[name];
-    if (!def) return [];
-    // a name may cover several subdivisions of one map region
-    var byName = {};
-    for (var id in S.regions) {
-      var r = S.regions[id];
-      [r.name, r.base].forEach(function (k) {
-        if (!k) return;
-        k = k.toLowerCase();
-        (byName[k] = byName[k] || []).push(id);
-      });
-    }
-    return def.map(function (d) {
-      var seeds = [];
-      (d.provinces || []).forEach(function (p) {
-        (S.byProvince[p] || []).forEach(function (id) { seeds.push(id); });
-      });
-      (d.regions || []).forEach(function (n) {
-        (byName[n.toLowerCase()] || []).forEach(function (id) { seeds.push(id); });
-      });
-      return { name: d.name, color: d.color, power: d.power || 1, seeds: seeds };
-    }).filter(function (f) { return f.seeds.length; });
-  }
-
-  TM.sim = {
-    defaults: defaults, newFaction: newFaction, run: run,
-    factionsFromPainting: factionsFromPainting,
-    presets: PRESETS, expandPreset: expandPreset
-  };
-})(window);
-
-</script>
-<script>
 /* ---- js/exporter.js ---- */
 /* ==========================================================================
-   exporter.js -- standalone SVG, PNG raster, animated-frame PNGs, JSON I/O
+   exporter.js -- standalone SVG, PNG raster, JSON and CSV I/O
    ========================================================================== */
 (function (W) {
   'use strict';
@@ -2244,8 +1582,8 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
   /* --------------------------------------------------- self-contained SVG */
   /**
    * Renders the map to an SVG string that carries no CSS dependencies.
-   * `opts.colors` overrides the painting (used for timeline frames),
-   * `opts.box` overrides the viewBox, `opts.legend`/`opts.caption` add chrome.
+   * `opts.colors` overrides the painting,
+   * `opts.box` overrides the viewBox, `opts.groups` overrides the legend.
    */
   function buildSVG(opts) {
     opts = opts || {};
@@ -2373,17 +1711,15 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
       o.push('</g>');
     }
 
-    /* --- chrome: title, caption, legend --- */
+    /* --- chrome: title, subtitle, legend --- */
     var pad = box.w * 0.014;
     var titleSize = box.w * 0.024;
-    if (st.title || opts.caption) {
+    if (st.title || st.subtitle) {
       // measure the block first so it can sit on its own panel instead of
       // colliding with the region labels underneath
       var lines = [];
       if (st.title) lines.push({ t: st.title, s: titleSize, w: 600, o: 1 });
       if (st.subtitle) lines.push({ t: st.subtitle, s: titleSize * 0.5, w: 400, o: 0.9 });
-      if (opts.caption) lines.push({ t: opts.caption, s: titleSize * 0.5, w: 600, o: 1 });
-      if (opts.caption2) lines.push({ t: opts.caption2, s: titleSize * 0.36, w: 400, o: 0.85 });
       var bw = 0, bh = pad * 0.5;
       lines.forEach(function (L) {
         bw = Math.max(bw, L.t.length * L.s * 0.47);
@@ -2407,7 +1743,9 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     }
     if (st.showLegend && groups && groups.length) {
       var lh = box.w * 0.0115, lw = box.w * 0.13;
-      var maxLbl = groups.reduce(function (m, g) { return Math.max(m, (g.label || '').length); }, 6);
+      var maxLbl = groups.reduce(function (m, g) {
+        return Math.max(m, (g.label || '').length + (st.legendCounts ? 6 : 0));
+      }, 6);
       lw = Math.max(lw, maxLbl * lh * 0.5 + lh * 2.8);
       var lhh = groups.length * lh + lh * 2.6;
       var at = st.legendAt || [0.985, 0.02];
@@ -2431,9 +1769,11 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
                (lh * 0.74) + '" height="' + (lh * 0.74) + '" rx="' + (lh * 0.1) +
                '" fill="' + g.color + '" stroke="rgba(0,0,0,.55)" stroke-width="' +
                (lh * 0.045) + '"/>');
+        var lbl = g.label || '';
+        if (st.legendCounts) lbl += '  (' + TM.state.countColor(g.color) + ')';
         o.push('<text x="' + (lx + lh * 1.72) + '" y="' + (y + lh * 0.02) + '" font-size="' +
                (lh * 0.66) + '" font-family="Segoe UI,system-ui,sans-serif" fill="' + t.label +
-               '">' + esc(g.label || '') + '</text>');
+               '">' + esc(lbl) + '</text>');
       });
       o.push('</g>');
     }
@@ -2471,15 +1811,7 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
 
   function exportPNG(scale) {
     scale = scale || S.doc.style.exportScale || 2;
-    var kf = TM.timeline.frames().length ? TM.timeline.frameAt(S.playhead) : null;
-    var opts = { box: currentBox(), scale: scale };
-    if (S.playing || (kf && S.doc.style.captionFromTimeline)) {
-      opts.colors = TM.timeline.colorsAt(S.playhead);
-      opts.groups = kf.groups && kf.groups.length ? kf.groups : S.doc.groups;
-      opts.caption = kf.date + (kf.title ? ' — ' + kf.title : '');
-      opts.caption2 = kf.note || '';
-    }
-    var r = buildSVG(opts);
+    var r = buildSVG({ box: currentBox(), scale: scale });
     return rasterise(r.svg, r.w, r.h).then(function (canvas) {
       return new Promise(function (res) {
         canvas.toBlob(function (b) {
@@ -2488,33 +1820,6 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
         }, 'image/png');
       });
     });
-  }
-
-  /** Export every keyframe as its own PNG (an animation strip you can stitch). */
-  function exportFrames(scale) {
-    scale = scale || 1.5;
-    var f = TM.timeline.frames();
-    if (!f.length) return Promise.resolve(0);
-    var box = currentBox(), i = 0;
-    function next() {
-      if (i >= f.length) return Promise.resolve(f.length);
-      var kf = f[i];
-      var r = buildSVG({
-        box: box, scale: scale, colors: kf.colors,
-        groups: kf.groups && kf.groups.length ? kf.groups : S.doc.groups,
-        caption: kf.date + (kf.title ? ' — ' + kf.title : ''), caption2: kf.note || ''
-      });
-      var n = i;
-      return rasterise(r.svg, r.w, r.h).then(function (canvas) {
-        return new Promise(function (res) {
-          canvas.toBlob(function (b) {
-            download(b, slug(S.doc.name) + '-' + String(n + 1).padStart(2, '0') + '.png');
-            setTimeout(res, 260);
-          }, 'image/png');
-        });
-      }).then(function () { i++; return next(); });
-    }
-    return next();
   }
 
   /* ----------------------------------------------------------------- JSON */
@@ -2557,7 +1862,7 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
 
   TM.exporter = {
     buildSVG: buildSVG, exportSVG: exportSVG, exportPNG: exportPNG,
-    exportFrames: exportFrames, exportJSON: exportJSON, importJSON: importJSON,
+    exportJSON: exportJSON, importJSON: importJSON,
     exportCSV: exportCSV, download: download
   };
 })(window);
@@ -2580,7 +1885,7 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     (subs['*'] || []).forEach(function (f) { f(name, arg); });
   };
 
-  var S = TM.S, ST = TM.state, V, TL, SIM, EX;
+  var S = TM.S, ST = TM.state, V, EX;
   function $(id) { return D.getElementById(id); }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -2594,10 +1899,11 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     toast._t = setTimeout(function () { t.classList.remove('on'); }, 2200);
   }
   function selCount() { return Object.keys(S.selection).length; }
+  function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
 
   /* ============================== INIT ================================== */
   function init() {
-    V = TM.view; TL = TM.timeline; SIM = TM.sim; EX = TM.exporter;
+    V = TM.view; EX = TM.exporter;
 
     V.build(W.TAMRIEL_MAP, $('stage'), $('tip'));
 
@@ -2614,15 +1920,14 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     setActiveColor(TM.PALETTES.Banners[0], true);
     bindLegendDrag();
 
-    TM.on('paint', function () { V.repaint(); renderLegend(); renderTree(); renderStatus(); });
+    TM.on('paint', function () {
+      V.repaint(); renderLegend(); renderTree(); renderStatus(); renderInspector();
+    });
     TM.on('doc', function () { syncStyleControls(); V.applyTheme(); renderAll(); });
     TM.on('selection', function () { V.repaint(); renderTree(); renderSel(); renderStatus(); });
     TM.on('history', renderStatus);
-    TM.on('hover', renderStatus);
+    TM.on('hover', function () { renderStatus(); renderInspector(); });
     TM.on('view', renderStatus);
-    TM.on('timeline', function () { renderKeyframes(); renderEra(); renderLegend(); });
-    TM.on('playhead', function () { renderScrubs(); renderEra(); renderLegend(); });
-    TM.on('playstate', function () { renderPlayButtons(); renderScrubs(); });
     TM.on('contextmenu', openMenu);
     D.addEventListener('pointerdown', function (e) {
       var m = $('ctxmenu');
@@ -2647,10 +1952,6 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     Object.keys(TM.THEMES).forEach(function (k) {
       th.appendChild(opt(k, TM.THEMES[k].title || k));
     });
-    var sc = $('tl-scenario');
-    TL.scenarios.forEach(function (s) { sc.appendChild(opt(s.id, s.name)); });
-    var pr = $('sm-preset');
-    Object.keys(SIM.presets).forEach(function (k) { pr.appendChild(opt(k, k)); });
     var ps = $('palset');
     Object.keys(TM.PALETTES).forEach(function (k) {
       var b = D.createElement('button');
@@ -2663,29 +1964,55 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
 
   /* ================================ RENDER ============================== */
   function renderAll() {
-    renderSwatches(); renderLegend(); renderTree(); renderSel();
-    renderKeyframes(); renderFactions(); renderSlots();
-    syncStyleControls(); renderEra(); renderStatus(); renderScrubs();
+    renderSwatches(); renderLegend(); renderTree(); renderSel(); renderSlots();
+    syncStyleControls(); renderTitleCard(); renderStatus(); renderInspector();
     $('f-name').value = S.doc.name;
   }
 
   /* ---------- palette ---------- */
+  function swatchEl(c, onPick, onForget) {
+    var d = D.createElement('div');
+    d.className = 'sw' + (c === S.activeColor ? ' on' : '');
+    d.style.background = c; d.title = c;
+    d.onclick = function () { onPick(c); };
+    if (onForget) {
+      d.oncontextmenu = function (e) { e.preventDefault(); onForget(c); };
+      d.title = c + ' — right-click to forget';
+    }
+    return d;
+  }
   function renderSwatches() {
     var box = $('swatches'); box.innerHTML = '';
     (TM.PALETTES[S.activePalette] || []).forEach(function (c) {
-      var d = D.createElement('div');
-      d.className = 'sw' + (c === S.activeColor ? ' on' : '');
-      d.style.background = c; d.title = c;
-      d.onclick = function () { setActiveColor(c); };
-      box.appendChild(d);
+      box.appendChild(swatchEl(c, function () { setActiveColor(c); }));
     });
     Array.prototype.forEach.call($('palset').children, function (b) {
       b.classList.toggle('on', b.dataset.pal === S.activePalette);
+    });
+    renderRecent(); renderMine();
+  }
+  function renderRecent() {
+    var host = $('recent'), wrap = $('recent-wrap');
+    host.innerHTML = '';
+    wrap.hidden = !S.recent.length;
+    S.recent.forEach(function (c) {
+      host.appendChild(swatchEl(c, function () { setActiveColor(c); }));
+    });
+  }
+  function renderMine() {
+    var host = $('mine'), wrap = $('mine-wrap');
+    var mine = ST.listSwatches();
+    host.innerHTML = '';
+    wrap.hidden = !mine.length;
+    mine.forEach(function (c) {
+      host.appendChild(swatchEl(c, function () { setActiveColor(c); },
+        function () { ST.removeSwatch(c); renderMine(); }));
     });
   }
   function setActiveColor(c, quiet) {
     c = ST.normHex(c) || '#8c2f2a';
     S.activeColor = c;
+    ST.noteColor(c);
     $('curchip').style.background = c;
     $('pk-color').value = c;
     $('pk-hex').value = c;
@@ -2716,20 +2043,33 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
       nm.oninput = function () { g.label = nm.value; S.dirty = true; renderMapLegend(); };
       var n = D.createElement('span');
       n.className = 'n'; n.textContent = ST.countColor(g.color);
+      var mv = D.createElement('span');
+      mv.className = 'mv';
+      mv.innerHTML = '<span class="up" title="Move up">&#9650;</span>' +
+                     '<span class="dn" title="Move down">&#9660;</span>';
+      mv.onclick = function (e) { e.stopPropagation(); };
+      mv.querySelector('.up').onclick = function (e) { e.stopPropagation(); moveGroup(i, -1); };
+      mv.querySelector('.dn').onclick = function (e) { e.stopPropagation(); moveGroup(i, 1); };
       var x = D.createElement('span');
       x.className = 'x'; x.innerHTML = '&times;'; x.title = 'Clear every region in this group';
       x.onclick = function (e) {
         e.stopPropagation();
         var ids = idsWithColor(g.color);
         ST.setColor(ids, null);
-        toast('Cleared ' + ids.length + ' region' + (ids.length === 1 ? '' : 's'));
+        toast('Cleared ' + plural(ids.length, 'region'));
       };
-      row.appendChild(chip); row.appendChild(nm); row.appendChild(n); row.appendChild(x);
+      [chip, nm, n, mv, x].forEach(function (el) { row.appendChild(el); });
       row.onclick = function () { setActiveColor(g.color); selectColor(g.color); };
       row.title = 'Click to make this the active colour and select its regions';
       list.appendChild(row);
     });
     renderMapLegend();
+  }
+  function moveGroup(i, d) {
+    var gs = S.doc.groups, j = i + d;
+    if (j < 0 || j >= gs.length) return;
+    var t = gs[i]; gs[i] = gs[j]; gs[j] = t;
+    S.dirty = true; renderLegend();
   }
   function idsWithColor(c) {
     var out = [];
@@ -2746,6 +2086,8 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     ST.pushUndo();
     var g = ST.groupFor(from);
     idsWithColor(from).forEach(function (id) { S.doc.colors[id] = to; });
+    for (var o in S.doc.occupied) if (S.doc.occupied[o] === from) S.doc.occupied[o] = to;
+    for (var c in S.doc.cityColors) if (S.doc.cityColors[c] === from) S.doc.cityColors[c] = to;
     if (g) {
       var exist = S.doc.groups.filter(function (x) { return x.color === to && x !== g; })[0];
       if (exist) { S.doc.groups = S.doc.groups.filter(function (x) { return x !== g; }); }
@@ -2759,16 +2101,17 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     tl: [0.015, 0.02], tr: [0.985, 0.02], bl: [0.015, 0.98], br: [0.985, 0.98]
   };
   function renderMapLegend() {
-    var box = $('maplegend'), st = S.doc.style;
-    var kf = (S.playing || S.scrubbing || S.activeKf >= 0) ? TL.frameAt(S.playhead) : null;
-    var gs = (kf && kf.groups && kf.groups.length) ? kf.groups : S.doc.groups;
+    var box = $('maplegend'), st = S.doc.style, gs = S.doc.groups;
     if (!st.showLegend || !gs.length) { box.style.display = 'none'; return; }
     box.style.display = '';
+    var cols = Math.max(1, Math.min(4, st.legendCols || 1));
     box.innerHTML = '<div class="lt">' + esc(st.legendTitle || 'Legend') + '</div>' +
+      '<div class="cols" style="grid-template-columns:repeat(' + cols + ',auto)">' +
       gs.map(function (g) {
         return '<div class="li"><i style="background:' + esc(g.color) + '"></i>' +
-               esc(g.label || g.color) + '</div>';
-      }).join('');
+               esc(g.label || g.color) +
+               (st.legendCounts ? '<u>' + ST.countColor(g.color) + '</u>' : '') + '</div>';
+      }).join('') + '</div>';
     placeLegend();
   }
   function placeLegend() {
@@ -2807,6 +2150,7 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
         cy > sh / 2 ? (t + box.offsetHeight) / sh : t / sh
       ];
       S.doc.style.legendAnchor = 'custom';
+      $('s-legendpos').value = 'custom';
       S.dirty = true;
     });
     function stop(e) { if (drag) { drag = null; box.releasePointerCapture(e.pointerId); } }
@@ -2815,16 +2159,54 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     W.addEventListener('resize', placeLegend);
   }
 
-  /* ---------- era overlay ---------- */
-  function renderEra() {
-    var st = S.doc.style;
-    var f = TL.frames();
-    var kf = f.length ? TL.frameAt(S.playhead) : null;
-    $('era-t').textContent = st.title || '';
-    $('era-d').textContent = kf ? kf.date : (st.subtitle || '');
-    $('era-n').textContent = kf ? [kf.title, kf.note].filter(Boolean).join(' — ')
-                                : (kf ? '' : '');
-    $('playbar').classList.toggle('on', f.length > 1);
+  /* ---------- title card on the map ---------- */
+  function renderTitleCard() {
+    var st = S.doc.style, card = $('titlecard');
+    $('tc-t').textContent = st.title || '';
+    $('tc-s').textContent = st.subtitle || '';
+    card.style.display = (st.title || st.subtitle) ? '' : 'none';
+    card.classList.toggle('light', !(TM.THEMES[st.theme] || {}).dark);
+  }
+
+  /* ---------- inspector ---------- */
+  function renderInspector() {
+    var host = $('inspect');
+    var id = S.hover || Object.keys(S.selection)[0];
+    var r = id && S.regions[id];
+    if (!r) {
+      host.innerHTML = '<p class="hint" style="margin:0">Hover the map to inspect a region.</p>';
+      return;
+    }
+    var col = S.doc.colors[id], g = ST.groupFor(col);
+    var occ = S.doc.occupied[id], og = ST.groupFor(occ);
+    var siblings = (S.byBase[r.baseId] || []).length;
+    var nbNames = (r.nb || []).map(function (n) {
+      return (S.regions[n] || {}).base || (S.regions[n] || {}).name;
+    }).filter(function (v, i, a) { return v && v !== r.base && a.indexOf(v) === i; });
+
+    var rows = [
+      ['Province', esc(r.province)],
+      ['Region', esc(r.base || r.name)],
+      ['Subregion', esc(r.name)],
+      ['Siblings', siblings + ' in this region'],
+      ['Colour', col ? '<span class="mono">' + esc(col) + '</span>' +
+                       (g ? ' &middot; ' + esc(g.label) : '') : '—']
+    ];
+    if (r.city) rows.splice(3, 0, ['City', esc(r.city)]);
+    if (occ) rows.push(['Occupied by', '<span class="mono">' + esc(occ) + '</span>' +
+                                       (og ? ' &middot; ' + esc(og.label) : '')]);
+
+    host.innerHTML =
+      '<div class="ih"><i style="background:' + (col || 'transparent') +
+        ';border-style:' + (col ? 'solid' : 'dashed') + '"></i>' +
+        '<b>' + esc(S.level === 'province' ? r.province
+                    : (S.level === 'subregion' ? r.name : (r.base || r.name))) + '</b></div>' +
+      '<dl>' + rows.map(function (p) {
+        return '<dt>' + p[0] + '</dt><dd>' + p[1] + '</dd>';
+      }).join('') + '</dl>' +
+      (nbNames.length ? '<div class="nb"><dt style="margin-bottom:4px">Borders</dt>' +
+        nbNames.slice(0, 10).map(function (n) { return '<em>' + esc(n) + '</em>'; }).join('') +
+        (nbNames.length > 10 ? ' +' + (nbNames.length - 10) + ' more' : '') + '</div>' : '');
   }
 
   /* ---------- tree ---------- */
@@ -3038,85 +2420,6 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     });
   }
 
-  /* ---------- keyframes ---------- */
-  function renderKeyframes() {
-    var f = TL.frames(), host = $('kf-list');
-    $('kf-count').textContent = f.length ? '(' + f.length + ')' : '';
-    host.innerHTML = '';
-    f.forEach(function (kf, i) {
-      var row = D.createElement('div');
-      row.className = 'kf' + (i === S.activeKf ? ' on' : '');
-      row.innerHTML = '<span class="i">' + (i + 1) + '</span>' +
-        '<span class="tx"><b>' + esc(kf.title || kf.date) + '</b><i>' + esc(kf.date) + '</i></span>' +
-        '<span class="mv"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span>' +
-        '<span class="x">&times;</span>';
-      row.onclick = function () { TL.load(i); renderKfFields(); };
-      row.querySelector('.up').onclick = function (e) { e.stopPropagation(); TL.move(i, -1); };
-      row.querySelector('.dn').onclick = function (e) { e.stopPropagation(); TL.move(i, 1); };
-      row.querySelector('.x').onclick = function (e) { e.stopPropagation(); TL.remove(i); };
-      host.appendChild(row);
-    });
-    renderScrubs(); renderKfFields();
-  }
-  function renderKfFields() {
-    var kf = TL.frames()[S.activeKf];
-    $('kf-date').value = kf ? kf.date : '';
-    $('kf-title').value = kf ? kf.title : '';
-    $('kf-note').value = kf ? kf.note : '';
-    ['kf-date', 'kf-title', 'kf-note'].forEach(function (id) { $(id).disabled = !kf; });
-  }
-  function renderScrubs() {
-    var n = Math.max(0, TL.frames().length - 1);
-    [['tl-scrub', 'tl-pos'], ['pb-scrub', 'pb-lbl']].forEach(function (p) {
-      var s = $(p[0]); s.max = n; s.value = S.playhead;
-      s.disabled = n === 0;
-      var kf = TL.frameAt(S.playhead);
-      $(p[1]).textContent = kf ? kf.date : '—';
-    });
-  }
-  function renderPlayButtons() {
-    var glyph = S.playing ? '&#10073;&#10073;' : '&#9654;';
-    $('tl-play').innerHTML = glyph;
-    $('pb-play').innerHTML = glyph;
-  }
-
-  /* ---------- factions ---------- */
-  var facs = [];
-  function renderFactions() {
-    var host = $('sm-factions'); host.innerHTML = '';
-    $('sm-count').textContent = facs.length ? '(' + facs.length + ')' : '';
-    facs.forEach(function (f, i) {
-      var box = D.createElement('div');
-      box.className = 'fac';
-      var top = D.createElement('div'); top.className = 'top';
-      var col = D.createElement('input'); col.type = 'color'; col.value = f.color;
-      col.oninput = function () { f.color = col.value; };
-      var nm = D.createElement('input'); nm.type = 'text'; nm.value = f.name;
-      nm.oninput = function () { f.name = nm.value; };
-      var setb = D.createElement('button');
-      setb.className = 'btn sm'; setb.textContent = 'Set';
-      setb.title = 'Use the current selection as this faction\'s starting regions';
-      setb.onclick = function () {
-        f.seeds = Object.keys(S.selection);
-        if (!f.seeds.length) { toast('Select some regions first'); return; }
-        renderFactions();
-      };
-      var del = D.createElement('button');
-      del.className = 'btn sm danger'; del.innerHTML = '&times;';
-      del.onclick = function () { facs.splice(i, 1); renderFactions(); };
-      [col, nm, setb, del].forEach(function (e) { top.appendChild(e); });
-      var seeds = D.createElement('div');
-      seeds.className = 'seeds';
-      seeds.innerHTML = f.seeds.length
-        ? f.seeds.slice(0, 12).map(function (id) {
-            return '<em>' + esc((S.regions[id] || {}).name || id) + '</em>';
-          }).join('') + (f.seeds.length > 12 ? ' +' + (f.seeds.length - 12) + ' more' : '')
-        : '<span style="opacity:.7">no starting regions — select some and press Set</span>';
-      box.appendChild(top); box.appendChild(seeds);
-      host.appendChild(box);
-    });
-  }
-
   /* ---------- slots ---------- */
   function renderSlots() {
     var host = $('f-slots'); host.innerHTML = '';
@@ -3155,11 +2458,19 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
       }
       return n;
     }
-    if (S.level === 'region') {
+    if (S.level === 'province') {
+      var np = 0;
+      S.map.provinces.forEach(function (p) {
+        if (p.regions.some(function (x) { return S.doc.colors[x]; })) np++;
+      });
+      bits.push(np + '/' + S.map.provinces.length + ' provinces painted');
+    } else if (S.level === 'region') {
       bits.push(countGroups(S.byBase) + '/' + (S.map.baseRegions || []).length + ' regions painted');
     } else {
       bits.push(painted + '/' + S.map.regions.length + ' subregions painted');
     }
+    var nocc = Object.keys(S.doc.occupied).length;
+    if (nocc) bits.push(nocc + ' occupied');
     if (cityMode()) {
       bits.push(Object.keys(S.doc.cityColors).length + '/' +
                 (S.map.cityDistricts || []).length + ' cities');
@@ -3203,10 +2514,10 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     $('s-subtitle').value = st.subtitle || '';
     $('s-legendtitle').value = st.legendTitle || '';
     $('s-showlegend').checked = st.showLegend !== false;
+    $('s-legendcounts').checked = !!st.legendCounts;
     $('s-legendpos').value = st.legendAnchor || 'tr';
-    $('tl-spf').value = st.secPerFrame || 1.6; $('tl-spf-v').textContent = (st.secPerFrame || 1.6) + 's';
-    $('tl-crossfade').checked = st.crossfade !== false;
-    $('tl-loop').checked = !!st.loopPlay;
+    $('s-legendcols').value = st.legendCols || 1;
+    $('s-legendcols-v').textContent = st.legendCols || 1;
     $('e-view').value = st.exportView || 'fit';
     $('e-scale').value = st.exportScale || 2;
     $('e-scale-v').textContent = '×' + (st.exportScale || 2);
@@ -3214,7 +2525,7 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
   function styleChanged(rerender) {
     S.dirty = true;
     if (rerender !== false) V.applyTheme();
-    renderMapLegend(); renderEra(); renderStatus();
+    renderMapLegend(); renderTitleCard(); renderStatus();
   }
 
   /* ---------- right-click menu ---------- */
@@ -3229,7 +2540,7 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     var scope = info.id ? TM.idsFor(info.id, {}) : [];
     var provIds = r ? S.byProvince[r.province] : [];
     var title = r ? (S.level === 'province' ? r.province
-                     : (S.level === 'parcel' ? r.name : (r.base || r.name)))
+                     : (S.level === 'subregion' ? r.name : (r.base || r.name)))
                   : (S.map.cityDistricts || []).filter(function (c) {
                       return c.id === info.city; }).map(function (c) {
                       return c.name; })[0];
@@ -3240,6 +2551,10 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     }
     if (r) {
       items.push(['Fill with active colour', function () { ST.setColor(scope, S.activeColor); }]);
+      items.push(['Fill the whole province', function () {
+        ST.setColor(provIds.slice(), S.activeColor);
+      }]);
+      items.push(['-']);
       items.push(['Occupy with active colour', function () {
         ST.setOccupied(scope, S.activeColor);
         toast('Occupied ' + scope.length + ' — striped over the owner');
@@ -3250,10 +2565,17 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
       }]);
       items.push(['Liberate (clear occupation)', function () { ST.setOccupied(scope, null); }]);
       items.push(['Liberate the province', function () { ST.setOccupied(provIds.slice(), null); }]);
+      items.push(['-']);
+      items.push(['Select this', function () {
+        scope.forEach(function (id) { S.selection[id] = true; });
+        TM.emit('selection');
+      }]);
+      items.push(['Zoom here', function () { V.zoomToRegion(info.id); }]);
       items.push(['Clear colour', function () { ST.setColor(scope, null); }]);
     }
     m.innerHTML = '<div class="ct">' + esc(title || '') + '</div>';
     items.forEach(function (it) {
+      if (it[0] === '-') { m.appendChild(D.createElement('hr')); return; }
       var b = D.createElement('button');
       b.textContent = it[0];
       b.onclick = function () { it[1](); closeMenu(); };
@@ -3300,7 +2622,7 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     $('s-provborders').checked = st.showProvBorders;
     V.applyTheme();
     if (V.clearHover) V.clearHover();
-    if (!quiet) renderStatus();
+    if (!quiet) { renderStatus(); renderInspector(); }
   }
 
   function cityMode() { return !!S.doc.style.showCityDistricts; }
@@ -3344,6 +2666,10 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
       var g = ST.ensureGroup(S.activeColor, $('pk-label').value);
       if (g) { g.label = $('pk-label').value || g.label; S.dirty = true; renderLegend(); }
     };
+    $('pk-save').onclick = function () {
+      if (ST.addSwatch(S.activeColor)) { renderMine(); toast('Saved ' + S.activeColor); }
+      else toast('Already in My colours');
+    };
     $('q-prov').onclick = function () {
       ST.pushUndo();
       var pal = TM.PALETTES.Provinces;
@@ -3352,6 +2678,16 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
         p.regions.forEach(function (id) { S.doc.colors[id] = c; });
         ST.ensureGroup(c, p.name);
       });
+      ST.pruneGroups(); TM.emit('paint');
+    };
+    $('q-region').onclick = function () {
+      ST.pushUndo();
+      var pal = TM.PALETTES[S.activePalette] || TM.PALETTES.Banners;
+      (S.map.baseRegions || []).forEach(function (b, i) {
+        var c = pal[i % pal.length];
+        (S.byBase[b.id] || []).forEach(function (id) { S.doc.colors[id] = c; });
+      });
+      pal.forEach(function (c, i) { ST.ensureGroup(c, 'Group ' + (i + 1)); });
       ST.pruneGroups(); TM.emit('paint');
     };
     $('q-rand').onclick = function () {
@@ -3363,11 +2699,20 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
       pal.forEach(function (c, i) { ST.ensureGroup(c, 'Group ' + (i + 1)); });
       ST.pruneGroups(); TM.emit('paint');
     };
+    $('q-rest').onclick = function () {
+      var ids = S.map.regions.filter(function (r) { return !S.doc.colors[r.id]; })
+                             .map(function (r) { return r.id; });
+      if (!ids.length) { toast('Every region already has a colour'); return; }
+      ST.setColor(ids, S.activeColor);
+      toast('Filled ' + plural(ids.length, 'unpainted region'));
+    };
     $('q-all').onclick = function () {
       ST.setColor(S.map.regions.map(function (r) { return r.id; }), S.activeColor);
     };
     $('q-clear').onclick = function () {
-      ST.pushUndo(); S.doc.colors = {}; S.doc.groups = []; TM.emit('paint');
+      ST.pushUndo();
+      S.doc.colors = {}; S.doc.occupied = {}; S.doc.cityColors = {}; S.doc.groups = [];
+      TM.emit('paint');
     };
 
     /* select panel */
@@ -3376,7 +2721,7 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
       var ids = Object.keys(S.selection);
       if (!ids.length) { toast('Nothing selected'); return; }
       ST.setColor(ids, S.activeColor);
-      toast('Filled ' + ids.length + ' region' + (ids.length === 1 ? '' : 's'));
+      toast('Filled ' + plural(ids.length, 'region'));
     };
     $('sel-erase').onclick = function () {
       var ids = Object.keys(S.selection);
@@ -3440,81 +2785,26 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     $('s-subtitle').oninput = function () { S.doc.style.subtitle = $('s-subtitle').value; styleChanged(false); };
     $('s-legendtitle').oninput = function () { S.doc.style.legendTitle = $('s-legendtitle').value; styleChanged(false); };
     $('s-showlegend').onchange = function () { S.doc.style.showLegend = $('s-showlegend').checked; styleChanged(false); };
+    $('s-legendcounts').onchange = function () { S.doc.style.legendCounts = $('s-legendcounts').checked; styleChanged(false); };
+    $('s-legendcols').oninput = function () {
+      S.doc.style.legendCols = parseInt($('s-legendcols').value, 10) || 1;
+      $('s-legendcols-v').textContent = S.doc.style.legendCols;
+      styleChanged(false);
+    };
     $('s-legendpos').onchange = function () {
       var v = $('s-legendpos').value;
       S.doc.style.legendAnchor = v;
       if (LEGEND_CORNERS[v]) S.doc.style.legendAt = LEGEND_CORNERS[v].slice();
       styleChanged(false);
     };
-
-    /* timeline panel */
-    $('tl-scenario').onchange = showScNote;
-    showScNote();
-    $('tl-load').onclick = function () {
-      TL.loadScenario($('tl-scenario').value, false);
-      toast('Loaded ' + TL.frames().length + ' frames');
-      setTab('time');
+    $('s-reset').onclick = function () {
+      var keep = S.doc.style.title, keep2 = S.doc.style.subtitle;
+      S.doc.style = ST.defaultStyle();
+      S.doc.style.title = keep; S.doc.style.subtitle = keep2;
+      syncStyleControls(); setLevel(S.level, true); setCityMode(false, true);
+      styleChanged(); V.repaint();
+      toast('Style reset');
     };
-    $('tl-append').onclick = function () {
-      TL.loadScenario($('tl-scenario').value, true);
-      toast('Appended — ' + TL.frames().length + ' frames');
-    };
-    $('kf-add').onclick = function () {
-      TL.add(); toast('Captured frame ' + TL.frames().length);
-    };
-    $('kf-update').onclick = function () {
-      if (S.activeKf < 0) { toast('Pick a frame first'); return; }
-      TL.update(S.activeKf); toast('Frame updated');
-    };
-    ['kf-date', 'kf-title', 'kf-note'].forEach(function (id) {
-      $(id).oninput = function () {
-        var kf = TL.frames()[S.activeKf]; if (!kf) return;
-        kf[id.slice(3)] = $(id).value;
-        S.dirty = true; renderKeyframes(); renderEra();
-      };
-    });
-    $('tl-play').onclick = togglePlay;
-    $('pb-play').onclick = togglePlay;
-    $('pb-close').onclick = function () { TL.stop(); S.activeKf = -1; renderEra(); renderLegend(); };
-    $('tl-scrub').oninput = function () { TL.pause(); TL.seek(parseFloat($('tl-scrub').value)); };
-    $('pb-scrub').oninput = function () { TL.pause(); TL.seek(parseFloat($('pb-scrub').value)); };
-    $('tl-spf').oninput = function () {
-      S.doc.style.secPerFrame = parseFloat($('tl-spf').value);
-      $('tl-spf-v').textContent = S.doc.style.secPerFrame + 's'; S.dirty = true;
-    };
-    $('tl-crossfade').onchange = function () { S.doc.style.crossfade = $('tl-crossfade').checked; S.dirty = true; };
-    $('tl-loop').onchange = function () { S.doc.style.loopPlay = $('tl-loop').checked; S.dirty = true; };
-    $('tl-frames').onclick = function () {
-      if (!TL.frames().length) { toast('No frames to export'); return; }
-      toast('Exporting ' + TL.frames().length + ' PNGs…');
-      EX.exportFrames(1.5).then(function (n) { toast('Exported ' + n + ' frames'); });
-    };
-
-    /* sim panel */
-    $('sm-loadpreset').onclick = function () {
-      facs = SIM.expandPreset($('sm-preset').value);
-      renderFactions();
-      toast(facs.length + ' factions ready');
-    };
-    $('sm-frompaint').onclick = function () {
-      facs = SIM.factionsFromPainting();
-      if (!facs.length) { toast('Paint something first'); return; }
-      renderFactions();
-      toast(facs.length + ' factions taken from the painting');
-    };
-    $('sm-addfac').onclick = function () {
-      var f = SIM.newFaction(facs.length);
-      f.seeds = Object.keys(S.selection);
-      facs.push(f); renderFactions();
-    };
-    $('sm-clearfac').onclick = function () { facs = []; renderFactions(); };
-    [['sm-exp', 'sm-exp-v'], ['sm-agg', 'sm-agg-v'], ['sm-sea', 'sm-sea-v'],
-     ['sm-rev', 'sm-rev-v']].forEach(function (p) {
-      var upd = function () { $(p[1]).textContent = Math.round($(p[0]).value * 100) + '%'; };
-      $(p[0]).oninput = upd; upd();
-    });
-    $('sm-run').onclick = function () { runSim(false); };
-    $('sm-runplay').onclick = function () { runSim(true); };
 
     /* file panel */
     $('f-name').oninput = function () { S.doc.name = $('f-name').value; S.dirty = true; };
@@ -3549,7 +2839,7 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
       var app = D.getElementById('app');
       app.classList.toggle('immersive', on);
       $('b-immersive').classList.toggle('on', on);
-      setTimeout(function () { V.resetView(); }, 210);
+      setTimeout(function () { V.resetView(); }, 230);
     }
     $('b-immersive').onclick = function () {
       setImmersive(!D.getElementById('app').classList.contains('immersive'));
@@ -3562,7 +2852,7 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
       var on = app.classList.toggle('collapsed');
       $('side-toggle').innerHTML = on ? '&#9656;' : '&#9666;';
       $('side-toggle').title = on ? 'Show the panel (Tab)' : 'Hide the panel (Tab)';
-      setTimeout(function () { TM.emit('view'); V.resetView(); }, 200);
+      setTimeout(function () { TM.emit('view'); V.resetView(); }, 220);
     };
 
     /* zoom controls */
@@ -3574,43 +2864,11 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
     D.addEventListener('keydown', onKey);
   }
 
-  function showScNote() {
-    var s = TL.scenarios.filter(function (x) { return x.id === $('tl-scenario').value; })[0];
-    $('tl-scnote').textContent = s ? s.note + ' (' + s.frames.length + ' frames)' : '';
-  }
-  function togglePlay() {
-    if (S.playing) TL.pause();
-    else if (TL.frames().length > 1) TL.play();
-    else toast('Capture at least two frames first');
-  }
   function doPNG() {
     toast('Rendering PNG…');
     EX.exportPNG(S.doc.style.exportScale || 2)
       .then(function () { toast('PNG exported'); })
       .catch(function (e) { toast('PNG failed: ' + e); });
-  }
-  function runSim(thenPlay) {
-    if (!facs.length || !facs.some(function (f) { return f.seeds.length; })) {
-      toast('Give at least one faction some starting regions');
-      return;
-    }
-    var cfg = {
-      seed: $('sm-seed').value || 'tamriel',
-      steps: Math.max(1, parseInt($('sm-steps').value, 10) || 12),
-      attempts: Math.max(1, parseInt($('sm-attempts').value, 10) || 3),
-      expansion: parseFloat($('sm-exp').value),
-      aggression: parseFloat($('sm-agg').value),
-      seaChance: parseFloat($('sm-sea').value),
-      revolt: parseFloat($('sm-rev').value),
-      startEra: $('sm-era').value,
-      startYear: parseInt($('sm-year').value, 10) || 0,
-      yearsPerStep: Math.max(1, parseInt($('sm-ypt').value, 10) || 1)
-    };
-    var frames = SIM.run(cfg, JSON.parse(JSON.stringify(facs)));
-    if (!frames) { toast('Simulation produced nothing'); return; }
-    toast('Simulated ' + frames.length + ' turns');
-    setTab('time');
-    if (thenPlay) { S.playhead = 0; TL.play(); }
   }
 
   function onKey(e) {
@@ -3645,8 +2903,6 @@ window.TAMRIEL_MAP = {"canvas":[1207,765],"fitBox":[25.5,-8.5,1049.0,758.0],"lan
       case 'f':
         TM.setImmersive(!D.getElementById('app').classList.contains('immersive'));
         break;
-      case 'k': TL.add(); toast('Captured frame ' + TL.frames().length); break;
-      case ' ': e.preventDefault(); togglePlay(); break;
       case '0': V.resetView(); break;
       case '+': case '=': V.zoomBy(1 / 1.35); break;
       case '-': V.zoomBy(1.35); break;

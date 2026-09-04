@@ -319,9 +319,6 @@
 
   /* ---------------------------------------------------------------- repaint */
   function repaint() {
-    // while the timeline is being scrubbed the screen shows interpolated
-    // colours that are not in doc.colors -- keep showing those.
-    if (S.scrubbing && TM.timeline) { paintFrom(TM.timeline.colorsAt(S.playhead)); return; }
     var t = theme();
     for (var id in paths) {
       var f = S.doc.colors[id] || t.unpainted;
@@ -361,7 +358,7 @@
       p.setAttribute('stroke-dasharray', c ? 'none' : (1.6 * ss) + ' ' + (1.2 * ss));
     }
   }
-  /** Paint straight from a colour map (used by timeline playback). */
+  /** Paint straight from a colour map (used by the exporter). */
   function paintFrom(colorMap) {
     var t = theme();
     for (var oid in occPaths) { occPaths[oid].style.display = 'none'; occPaths[oid].__o = null; }
@@ -459,7 +456,6 @@
     var ids = idsFor(id, ev);
     if (!ids.length) return;
     var erase = ev.altKey || ev.ctrlKey || ev.metaKey;
-    S.scrubbing = false;
     if (first) TM.state.pushUndo();
     var hex = erase ? null : S.activeColor;
     for (var i = 0; i < ids.length; i++) {
@@ -497,7 +493,6 @@
       }
       var cid = cityAt(e);
       if (cid && S.doc.style.showCityDistricts) {
-        S.scrubbing = false;
         TM.state.setCityColor([cid],
           (e.altKey || e.ctrlKey || e.metaKey) ? null : S.activeColor);
         return;
