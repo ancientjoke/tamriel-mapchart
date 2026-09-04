@@ -65,14 +65,15 @@ coastline much darker, labels darker still. `tools/trace_ref.py`:
    carrying progressively finer detail — scaled to its own length. The rolloff has to
    be steep: at 1/h the higher harmonics carry nearly as much as the fundamental and
    the cut comes out as a tight zigzag that reads as noise rather than a border; at
-   1/h**1.9 the fundamental dominates and the cut is a long meander that only ripples
-   on its way across. The whole meander then slides until it cuts off exactly the
+   1/h**2.2 the fundamental dominates and the cut is a long sweeping arc that only
+   ripples on its way across. The whole meander then slides until it cuts off exactly the
    share asked for — falling back to a straight quantile line instead is what used to
    put dead-straight spokes across the bigger regions. Because the displacement stays
    a single-valued function of the across-axis it can bend as much as it likes
-   without crossing itself, so the cut is always a clean split. That gives **225
-   subregions** whose cut parcels span 1712–2880 px, a 1.7× spread, with the most
-   uneven set of siblings at 1.62×.
+   without crossing itself, so the cut is always a clean split. The rasterised cut is then run through a mode filter, but only over pixels whose
+   whole neighbourhood lies inside one map region, so it comes off the pixel grid
+   without a single pixel of the traced outline moving. That gives **225 subregions**
+   whose cut parcels span a 1.63× spread at a median compactness of 0.54.
 
 The build reports coverage against the traced land — it should read ~100%.
 
@@ -103,6 +104,18 @@ Border widths are in map units but thin as you zoom in, so they stay readable at
 
 Colour is always stored per parcel, so switching levels never loses anything:
 filling a region just fills all of its parcels at once.
+
+## Province overrides
+
+The province flood walks the region adjacency out from the nearest city, which is
+right nearly everywhere but cannot know where a frontier runs when the region carries
+no label of its own. Three regions are pinned by hand in `PROVINCE_OVERRIDE`, each as
+a point inside the region plus the province and name it takes: the **Brena Valley**
+is Cyrodiil's western march rather than Hammerfell's eastern one; the wedge
+north-east of Blackwood is Cyrodiil's, so it takes the **Corbolo River** rather than
+an Argonian name; and **Alten Corimont** is pinned by name only, because compass
+placeholders are numbered per province and moving a region out of one renumbers the
+rest.
 
 ## Occupation
 

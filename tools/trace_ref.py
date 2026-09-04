@@ -51,13 +51,13 @@ LABEL_DROP = 9            # px: the label text sits this far above its marker
 MIN_ISLAND = 45           # px: standalone islands may be smaller than that
 TARGET_AREA = 2500        # px: aim for subdivisions around this size
 MAX_SPLIT = 5
-SPLIT_WOBBLE = 0.21       # how far a cut wanders, as a fraction of its length
+SPLIT_WOBBLE = 0.10       # how far a cut wanders, as a fraction of its length
 SUB_AREA = 2300           # px: target size of a subregion
 MAX_SPLIT_N = 8           # a big region may need more than a handful of parcels
 SEA_LINK = 14             # px: parcels this close across water count as neighbours
 CITY_RADIUS = 13.0        # px: reach of a city district
-CHAIKIN = 2
-SIMPLIFY = 0.6
+CHAIKIN = 4               # corner-cutting passes over every outline
+SIMPLIFY = 0.25
 OUTLINE_SIMPLIFY = 1.1    # stroke-only layers can be much coarser
 GROW = 0.18               # px: overlap that closes hairline seams between neighbours
 
@@ -173,6 +173,23 @@ LORE_REGIONS = {
     "Firsthold": "Auridon", "Alinor": "Summerset",
     "Stormhold": "Shadowfen", "Gideon": "Murkmire",
 }
+
+# Regions the flood puts in the wrong province.  The flood walks the region
+# adjacency from the nearest city, which is right nearly everywhere but cannot
+# know where a frontier actually runs when the region carries no label of its
+# own.  Each entry is a point inside the region, the province it belongs to,
+# and the name it takes there.
+PROVINCE_OVERRIDE = [
+    # the Brena is Cyrodiil's western march, not Hammerfell's eastern one
+    (457, 363, "Cyrodiil", "Brena Valley"),
+    # the wedge north-east of Blackwood is Cyrodiil's, so it cannot keep an
+    # Argonian name: the Corbolo runs east through it towards Black Marsh
+    (734, 514, "Cyrodiil", "Corbolo River"),
+    # a province of None keeps the province and only pins the name.  Compass
+    # placeholders are numbered per province, so moving one region out of a
+    # province renumbers the rest and their names would drift.
+    (761, 665, None, "Alten Corimont"),
+]
 
 # Compass placeholders replaced with the feature the reference labels there.
 LORE_PLACEHOLDERS = {
@@ -519,6 +536,23 @@ def flood_provinces(lab, prov):
     return out
 
 
+def apply_province_override(lab, prov, name):
+    """Move the handful of regions the flood cannot place, and name them."""
+    h, w = lab.shape
+    for (x, y, pv, nm) in PROVINCE_OVERRIDE:
+        rid = int(lab[y, x]) if 0 <= y < h and 0 <= x < w else 0
+        if not rid:
+            print("override     : no region at (%d,%d) -- skipped" % (x, y))
+            continue
+        was = prov.get(rid, "?")
+        if pv:
+            prov[rid] = pv
+        name[rid] = nm
+        print("override     : (%d,%d) %s -> %s, named %s"
+              % (x, y, was, pv or was, nm))
+    return prov, name
+
+
 def region_adjacency(lab):
     adj = {}
     a = lab
@@ -533,7 +567,7 @@ def region_adjacency(lab):
 # --------------------------------------------------------------------------- #
 # 6. depth: split the big regions without touching traced borders
 # --------------------------------------------------------------------------- #
-def wander(n, rng, amp, harmonics=5):
+def wander(n, rng, amp, harmonics=4):
     """A 1-D displacement with a coastline's spectrum: one broad sweep
     carrying progressively finer detail.  Because it stays a single-valued
     function of the across-axis it can bend as much as it likes without ever
@@ -548,7 +582,7 @@ def wander(n, rng, amp, harmonics=5):
     out = np.zeros_like(t)
     for h in range(harmonics):
         f = (h + 1) * rng.uniform(0.35, 0.7)
-        out += rng.uniform(0.7, 1.0) / (h + 1) ** 1.9 * np.sin(
+        out += rng.uniform(0.7, 1.0) / (h + 1) ** 2.2 * np.sin(
             2 * np.pi * f * t + rng.uniform(0, 2 * np.pi))
     sd = out.std() or 1.0
     return out / sd * amp
@@ -640,6 +674,60 @@ def tidy_parcels(lab, land):
     return lab
 
 
+def smooth_cuts(lab, parent, radius=3, rounds=4):
+    """Round off the stair-steps a rasterised cut leaves behind.
+
+    Only pixels whose whole neighbourhood sits inside one map region may
+    move, and they may only move between that region's own parcels, so not a
+    single pixel of the reference's own outline -- coast, traced border, the
+    lot -- can shift.  Inside that guard the parcel labels are run through a
+    mode filter, which pulls the cut off the pixel grid and onto a smooth
+    curve without ever opening a gap or an overlap: every pixel still belongs
+    to exactly one parcel.
+    """
+    base = np.zeros_like(lab)
+    for child, top in parent.items():
+        base[lab == child] = top
+    kids = {}
+    for child, top in parent.items():
+        kids.setdefault(top, []).append(child)
+
+    k = 2 * radius + 1
+    win = np.ones((k, k), float)
+    moved = 0
+    for top, group in kids.items():
+        if len(group) < 2:
+            continue
+        m = base == top
+        ys, xs = np.nonzero(m)
+        y0, y1 = ys.min(), ys.max() + 1
+        x0, x1 = xs.min(), xs.max() + 1
+        sub = lab[y0:y1, x0:x1]
+        inside = m[y0:y1, x0:x1]
+        # a pixel may only move if every pixel it is averaged with is in the
+        # same map region -- that is what keeps the traced outline exact
+        safe = ndimage.binary_erosion(inside, np.ones((k, k)))
+        if not safe.any():
+            continue
+        for _ in range(rounds):
+            best = None
+            score = None
+            for c in group:
+                v = ndimage.uniform_filter((sub == c).astype(float), size=k)
+                if score is None:
+                    score, best = v, np.full(sub.shape, c)
+                else:
+                    take = v > score
+                    score = np.where(take, v, score)
+                    best = np.where(take, c, best)
+            changed = safe & (best != sub)
+            moved += int(changed.sum())
+            sub = np.where(changed, best, sub)
+        lab[y0:y1, x0:x1] = sub
+    print("smooth cuts  : %d px moved between parcels of the same region" % moved)
+    return lab
+
+
 def subdivide(lab, target_area, max_split, land, tag):
     """Split every region bigger than target_area, returning child -> parent."""
     ids, counts = np.unique(lab[lab > 0], return_counts=True)
@@ -666,6 +754,8 @@ def subdivide(lab, target_area, max_split, land, tag):
             nxt += 1
         splits += 1
     lab = tidy_parcels(lab, land)
+    lab = smooth_cuts(lab, parent)
+    lab = tidy_parcels(lab, land)
     sizes = np.bincount(lab.ravel())[1:]
     sizes = sizes[sizes > 0]
     print("%-13s: %d split -> %d parcels (area min %d, median %d, max %d)"
@@ -676,7 +766,8 @@ def subdivide(lab, target_area, max_split, land, tag):
 # --------------------------------------------------------------------------- #
 # 7. vectorise
 # --------------------------------------------------------------------------- #
-def chaikin(pts, iters=CHAIKIN):
+def chaikin(pts, iters=None):
+    iters = CHAIKIN if iters is None else iters
     P = [tuple(map(float, q)) for q in pts]
     closed = P[0] == P[-1]
     if closed:
@@ -851,6 +942,7 @@ def main():
     lab = merge_small(lab, land)
     name, prov = name_regions(lab)
     prov = flood_provinces(lab, prov)
+    prov, name = apply_province_override(lab, prov, name)
 
     base_name, base_prov = dict(name), dict(prov)
     base_cent = {i: ndimage.center_of_mass(lab == i)
