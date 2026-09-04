@@ -50,7 +50,8 @@ MIN_ISLAND = 45           # px: standalone islands may be smaller than that
 TARGET_AREA = 2500        # px: aim for subdivisions around this size
 MAX_SPLIT = 5
 SPLIT_WOBBLE = 0.21       # how far a cut wanders, as a fraction of its length
-SUB_AREA = 2600           # px: target size of a subregion
+SUB_AREA = 2300           # px: target size of a subregion
+MAX_SPLIT_N = 8           # a big region may need more than a handful of parcels
 SEA_LINK = 14             # px: parcels this close across water count as neighbours
 CITY_RADIUS = 13.0        # px: reach of a city district
 CHAIKIN = 2
@@ -468,8 +469,11 @@ def wander(n, rng, amp, harmonics=6):
     return out / sd * amp
 
 
-def bisect(ys, xs, rng):
-    """Cut a blob in two with a wandering line across its short axis.
+def bisect(ys, xs, rng, frac=0.5):
+    """Cut a blob in two along a wandering line across its short axis.
+
+    `frac` is the share of the blob that should end up on the low side, so a
+    parcel count that is not a power of two still comes out even.
 
     k-means leaves interior clusters, which come out as discs -- very obvious
     on the big southern regions.  Cutting instead always produces two parcels
@@ -479,7 +483,6 @@ def bisect(ys, xs, rng):
     pts = np.stack([xs, ys], 1).astype(float)
     c = pts.mean(0)
     q = pts - c
-    # principal axis: cut across it, so parcels come out long, not round
     cov = np.cov(q.T)
     w, v = np.linalg.eigh(cov)
     u = v[:, int(np.argmax(w))]              # long axis
@@ -490,33 +493,47 @@ def bisect(ys, xs, rng):
     span = max(1e-6, hi - lo)
     tspan = max(1e-6, t.max() - t.min())
 
-    # the wander is scaled to the cut's own length, so it bends the line
-    # without swinging it far enough to carve out a crescent
     prof = wander(256, rng, amp=SPLIT_WOBBLE * min(span, tspan))
     idx = np.clip(((sacross - lo) / span * 255).astype(int), 0, 255)
-    mid = np.median(t)
+    mid = np.quantile(t, frac)
     side = t > (mid + prof[idx])
-    frac = side.mean()
-    if frac < 0.3 or frac > 0.7:
-        side = t > mid                       # keep the two parcels comparable
+    got = 1.0 - side.mean()                  # share on the low side
+    if abs(got - frac) > 0.08:
+        # the wander skewed the split; take the straight quantile so the
+        # parcels stay the size they were meant to be
+        side = t > mid
     return side
 
 
-def split_blob(mask, k, seed):
-    """Label a blob into k parcels by repeatedly bisecting the largest one."""
+def split_blob(mask, k, seed, floor):
+    """Label a blob into k parcels of comparable size.
+
+    Splitting the largest parcel over and over gives 50/25/25 for three, which
+    is what made the subdivisions look arbitrary.  Instead each cut is
+    proportional -- k parts are split into halves of ceil(k/2) and floor(k/2)
+    parcels, recursively -- so every parcel lands near the target area.
+    """
     rng = np.random.default_rng(seed)
     ys, xs = np.nonzero(mask)
-    lab = np.zeros(len(ys), int)
-    for nxt in range(1, k):
-        sizes = np.bincount(lab, minlength=nxt)
-        target = int(np.argmax(sizes))
-        sel = np.nonzero(lab == target)[0]
-        if len(sel) < 2 * MIN_REGION:
-            break
-        side = bisect(ys[sel], xs[sel], rng)
-        if side.sum() < MIN_REGION or (~side).sum() < MIN_REGION:
-            break
-        lab[sel[side]] = nxt
+    lab = np.full(len(ys), -1, int)
+    counter = [0]
+
+    def rec(sel, n):
+        if n <= 1 or len(sel) < 2 * floor:
+            lab[sel] = counter[0]
+            counter[0] += 1
+            return
+        ka = n // 2
+        side = bisect(ys[sel], xs[sel], rng, frac=ka / float(n))
+        a, b = sel[~side], sel[side]
+        if len(a) < floor or len(b) < floor:
+            lab[sel] = counter[0]
+            counter[0] += 1
+            return
+        rec(a, ka)
+        rec(b, n - ka)
+
+    rec(np.arange(len(ys)), k)
     return ys, xs, lab
 
 
@@ -542,25 +559,30 @@ def subdivide(lab, target_area, max_split, land, tag):
     area = dict(zip(ids.tolist(), counts.tolist()))
     nxt = int(ids.max()) + 1
     parent, splits = {}, 0
+    floor = max(MIN_REGION, int(target_area * 0.55))
     for rid in ids.tolist():
         parent[rid] = rid
         k = int(round(area[rid] / float(target_area)))
-        if k < 2 or area[rid] < target_area * 1.5:
+        if k < 2 or area[rid] < target_area * 1.45:
             continue
         k = min(k, max_split)
-        ys, xs, sub = split_blob(lab == rid, k, int(rid) * 7919 + 13)
+        ys, xs, sub = split_blob(lab == rid, k, int(rid) * 7919 + 13, floor)
         if sub.max() < 1:
             continue
-        for c in range(1, int(sub.max()) + 1):
+        parts = [c for c in range(int(sub.max()) + 1) if (sub == c).sum() >= MIN_REGION]
+        if len(parts) < 2:
+            continue
+        for c in parts[1:]:            # the first keeps the region's own label
             sel = sub == c
-            if sel.sum() < MIN_REGION:
-                continue
             lab[ys[sel], xs[sel]] = nxt
             parent[nxt] = rid
             nxt += 1
         splits += 1
     lab = tidy_parcels(lab, land)
-    print("%-13s: %d split -> %d parcels" % (tag, splits, len(np.unique(lab[lab > 0]))))
+    sizes = np.bincount(lab.ravel())[1:]
+    sizes = sizes[sizes > 0]
+    print("%-13s: %d split -> %d parcels (area min %d, median %d, max %d)"
+          % (tag, splits, len(sizes), sizes.min(), int(np.median(sizes)), sizes.max()))
     return lab, parent
 
 
@@ -765,7 +787,7 @@ def main():
           % (renamed, ", ".join(sorted(set(base_prov.values())))))
 
     # one round of cutting: map region -> subregion
-    lab, p2 = subdivide(lab, SUB_AREA, 5, land, "subregions")
+    lab, p2 = subdivide(lab, SUB_AREA, MAX_SPLIT_N, land, "subregions")
     sub_parent = {c: c for c in np.unique(lab[lab > 0]).tolist()}
     parent = {c: p2.get(c, c) for c in sub_parent}
     adj = region_adjacency(lab)

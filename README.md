@@ -93,7 +93,7 @@ draws its borders in a hierarchy. The **Fill** switch sets a sensible default, a
 |---|---|
 | Province | the ten provinces |
 | Map region | the 89 regions traced from the reference |
-| Subregion | 188 subdivisions |
+| Subregion | 222 subdivisions |
 
 Only one is visible at a time, chosen by the Fill switch.
 
@@ -197,7 +197,7 @@ js/timeline.js           keyframes, cross-fade playback, the built-in histories
 js/sim.js                the faction growth simulator
 js/exporter.js           standalone SVG, PNG, JSON, CSV
 js/ui.js                 panels, bindings, overlays, the event bus
-data/tamriel-map.js      generated geometry (188 subregions, 89 map regions,
+data/tamriel-map.js      generated geometry (222 subregions, 89 map regions,
                          10 provinces, 69 city districts)
 tools/trace_ref.py       the tracer
 tools/bundle.py          single-file build
