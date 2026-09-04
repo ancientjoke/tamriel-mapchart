@@ -5,7 +5,7 @@
   'use strict';
   var TM = W.TM, S = TM.S, NS = 'http://www.w3.org/2000/svg';
 
-  var svg, gSea, gLand, gScenery, gRegions, gProv, gWater, gCoast, gCity, gLabel;
+  var svg, gSea, gLand, gScenery, gRegions, gBase, gProv, gWater, gCoast, gCity, gLabel;
   var stage, tip;
   var view = { x: 0, y: 0, w: 1000, h: 700 };
   var fit = { x: 0, y: 0, w: 1000, h: 700 };
@@ -41,13 +41,14 @@
     gLand = el('g', { id: 'g-land' });
     gScenery = el('g', { id: 'g-scenery' });
     gRegions = el('g', { id: 'g-regions' });
+    gBase = el('g', { id: 'g-base', fill: 'none', 'stroke-linejoin': 'round' });
     gProv = el('g', { id: 'g-prov', fill: 'none', 'stroke-linejoin': 'round' });
     gWater = el('g', { id: 'g-water' });
     gCoast = el('g', { id: 'g-coast', fill: 'none', 'stroke-linejoin': 'round' });
     gCity = el('g', { id: 'g-city' });
     gLabel = el('g', { id: 'g-label', 'text-anchor': 'middle',
       'font-family': '"Segoe UI",Inter,system-ui,sans-serif', 'paint-order': 'stroke' });
-    [gSea, gLand, gScenery, gRegions, gProv, gWater, gCoast, gCity, gLabel]
+    [gSea, gLand, gScenery, gRegions, gBase, gProv, gWater, gCoast, gCity, gLabel]
       .forEach(function (g) { svg.appendChild(g); });
 
     gSea.appendChild(el('rect', { id: 'searect' }));
@@ -59,6 +60,9 @@
       p.__id = r.id;
       paths[r.id] = p;
       gRegions.appendChild(p);
+    });
+    (mapData.baseRegions || []).forEach(function (b) {
+      gBase.appendChild(el('path', { d: b.d }));
     });
     mapData.provinces.forEach(function (p) {
       var e = el('path', { d: p.d });
@@ -105,6 +109,8 @@
     gScenery.setAttribute('stroke', 'none');
     gRegions.setAttribute('stroke', st.showBorders ? t.border : 'none');
     gRegions.setAttribute('stroke-width', st.borderWidth);
+    gBase.setAttribute('stroke', st.showBaseBorders ? (t.baseBorder || t.border) : 'none');
+    gBase.setAttribute('stroke-width', st.baseBorderWidth != null ? st.baseBorderWidth : 0.9);
     gProv.setAttribute('stroke', st.showProvBorders ? t.provBorder : 'none');
     gProv.setAttribute('stroke-width', st.provBorderWidth);
     gCoast.setAttribute('stroke', st.showCoast ? t.coast : 'none');

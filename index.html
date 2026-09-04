@@ -60,7 +60,7 @@
         </div>
         <div class="palset" id="palset"></div>
         <div id="swatches"></div>
-        <p class="hint">Click a region to fill it. Drag to paint several.
+        <p class="hint">Click a subregion to fill it. Drag to paint several.
           <kbd>Shift</kbd>+click fills a whole province, <kbd>Alt</kbd>+click clears.
           Drag the sea to pan, scroll to zoom.</p>
 
@@ -82,7 +82,7 @@
       <!-- ---------- select ---------- -->
       <section class="panel" data-p="select">
         <h4>Find a region</h4>
-        <input type="text" id="find" placeholder="Search 159 regions, provinces or cities…" spellcheck="false">
+        <input type="text" id="find" placeholder="Search regions, provinces or cities…" spellcheck="false">
         <div id="find-out" style="margin-top:6px"></div>
 
         <h4>Selection <span id="sel-count" style="color:var(--ink-dim)"></span></h4>
@@ -108,9 +108,9 @@
         <div class="fld"><span>Theme</span><select id="s-theme"></select></div>
         <div class="fld"><span>Region labels</span>
           <select id="s-labelmode">
+            <option value="none">No names (as the reference map)</option>
             <option value="auto">Automatic — as they fit</option>
             <option value="all">Always show all</option>
-            <option value="none">Hide labels</option>
           </select>
         </div>
         <div class="fld"><span>Label text</span>
@@ -123,15 +123,18 @@
           <input type="range" id="s-labelsize" min="2.5" max="12" step="0.2"></div>
 
         <h4>Layers</h4>
-        <label class="ck"><input type="checkbox" id="s-borders"> Region borders</label>
+        <label class="ck"><input type="checkbox" id="s-borders"> Subregion borders</label>
+        <label class="ck"><input type="checkbox" id="s-baseborders"> Map region borders</label>
         <label class="ck"><input type="checkbox" id="s-provborders"> Province borders</label>
         <label class="ck"><input type="checkbox" id="s-coast"> Coastline</label>
         <label class="ck"><input type="checkbox" id="s-cities"> City markers</label>
-        <label class="ck"><input type="checkbox" id="s-rivers"> Rivers</label>
-        <label class="ck"><input type="checkbox" id="s-lakes"> Lakes &amp; inland seas</label>
-        <div class="fld" style="margin-top:10px"><span>Region border width <i id="s-bw-v" style="font-style:normal;color:var(--gold)"></i></span>
+        <label class="ck" id="row-rivers"><input type="checkbox" id="s-rivers"> Rivers</label>
+        <label class="ck" id="row-lakes"><input type="checkbox" id="s-lakes"> Lakes &amp; inland seas</label>
+        <div class="fld" style="margin-top:10px"><span>Subregion border <i id="s-bw-v" style="font-style:normal;color:var(--gold)"></i></span>
           <input type="range" id="s-bw" min="0" max="2" step="0.05"></div>
-        <div class="fld"><span>Province border width <i id="s-pbw-v" style="font-style:normal;color:var(--gold)"></i></span>
+        <div class="fld"><span>Map region border <i id="s-bbw-v" style="font-style:normal;color:var(--gold)"></i></span>
+          <input type="range" id="s-bbw" min="0" max="3" step="0.05"></div>
+        <div class="fld"><span>Province border <i id="s-pbw-v" style="font-style:normal;color:var(--gold)"></i></span>
           <input type="range" id="s-pbw" min="0" max="5" step="0.1"></div>
 
         <h4>Titles &amp; legend</h4>
@@ -194,7 +197,7 @@
       <section class="panel" data-p="sim">
         <h4>History simulator</h4>
         <p class="hint">Factions expand turn by turn across the region adjacency graph —
-          159 regions, 178 sea crossings. Every turn becomes a keyframe you can play back.</p>
+          199 subregions and their sea crossings. Every turn becomes a keyframe you can play back.</p>
         <div class="fld"><span>Starting powers</span><select id="sm-preset"></select></div>
         <div class="row">
           <button class="btn sm grow" id="sm-loadpreset">Use these</button>
@@ -281,9 +284,9 @@
           <kbd>1</kbd>…<kbd>9</kbd> pick palette colour
         </p>
         <h4>About</h4>
-        <p class="hint">159 regions across the nine provinces, tessellated from hand-placed
-          seeds with fractal-perturbed borders so every frontier looks drawn rather than
-          computed. Lore names follow the Elder Scrolls provincial maps.</p>
+        <p class="hint">The coastline and every map-region border are traced pixel by pixel
+          from the reference Tamriel map, so the outline matches 1:1. Each of those regions is
+          then split further, giving 199 subdivisions across the nine provinces.</p>
       </section>
     </div>
   </aside>

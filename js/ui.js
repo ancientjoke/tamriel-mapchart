@@ -36,6 +36,9 @@
 
     ST.loadAutosave();
     fillStatics();
+    // the traced map carries no rivers or lakes of its own; hide dead controls
+    if (!(S.map.rivers || []).length) $('row-rivers').style.display = 'none';
+    if (!(S.map.lakes || []).length) $('row-lakes').style.display = 'none';
     bind();
     renderAll();
     setTab('paint');
@@ -322,27 +325,20 @@
   /* ---------- search ---------- */
   /* Lore names people search for that are not themselves regions. */
   var ALIASES = {
-    'vvardenfell': ['Sheogorad', 'West Gash', 'Ashlands', 'Red Mountain', 'Grazelands',
-                    "Azura's Coast", 'Molag Amur', 'Ascadian Isles', 'Bitter Coast'],
-    'auridon': ['Firsthold', 'Skywatch', 'Vulkhel Guard'],
+    'vvardenfell': ['Gnisis', "Ald'ruhn", 'Balmora', 'Seyda Neen', 'Vivec', 'Dagon Fel'],
     'summerset': ['Alinor', 'Cloudrest', 'Dusk', 'Lillandril', 'Shimmerene', 'Sunhold',
-                  'Corgrad Wastes'],
-    'alik\'r': ["Alik'r Desert", 'Bergama', 'Myrkwasa', 'Antiphyllos', 'Santaki', 'Tigonus',
-                 "Dak'fron"],
-    'wrothgar': ['Wrothgar', 'Northmoor', 'Evermore'],
-    'orsinium': ['Wrothgar'],
-    'colovia': ['Colovian Highlands', 'Chorrol', 'Kvatch', 'Gold Coast', 'West Weald',
-                'Great Forest'],
-    'nibenay': ['Nibenay Basin', 'Nibenay Valley', 'Heartlands', 'Imperial City', 'Cheydinhal'],
-    'anequina': ['Riverhold', 'Dune', 'Orcrest', 'Rimmen', 'Anequina Plains'],
-    'pellitine': ['Corinthe', 'Torval', 'Senchal', 'Alabaster', 'Tenmar Forest',
-                  'Helkori Wastes'],
-    'argonia': ['Shadowfen', 'Thornmarsh', 'Murkmire', 'Arnesia', 'Onkobra', 'Helstrom'],
-    'deshaan': ['Deshaan', 'Mournhold', 'Narsis', 'Kragenmoor'],
-    'holds': ['Haafingar', 'Hjaalmarch', 'The Pale', 'Winterhold', 'Eastmarch', 'The Rift',
-              'Whiterun Hold', 'Falkreath Hold', 'The Reach'],
-    'iliac bay': ['Daggerfall', 'Wayrest', 'Sentinel', 'Betony', 'Anticlere'],
-    'skyrim': [], 'cyrodiil': [], 'morrowind': []
+                  'Firsthold'],
+    'holds': ['Solitude', 'Morthal', 'Dawnstar', 'Winterhold', 'Windhelm', 'Whiterun',
+              'Falkreath'],
+    'colovia': ['Anvil', 'Kvatch', 'Skingrad', 'Chorrol', 'Bruma'],
+    'nibenay': ['Imperial City', 'Bravil', 'Leyawiin', 'Cheydinhal'],
+    'cyrodiil': [],
+    'argonia': ['Stormhold', 'Thorn', 'Helstrom', 'Gideon', 'Archon', 'Soulrest',
+                'Blackrose'],
+    "alik'r": ['Gilane', 'Taneth', 'Hegathe', 'Rihad', 'Skaven'],
+    'iliac bay': ['Camlorn', 'Wayrest', 'Shornhelm', 'Evermore'],
+    'deshaan': ['Mournhold', 'Narsis', 'Tear'],
+    'telvanni': ['Sadrith Mora', 'Firewatch', 'Necrom']
   };
   function aliasHits(q) {
     var names = null;
@@ -352,7 +348,10 @@
     if (!names) return [];
     var out = [];
     names.forEach(function (n) {
-      for (var id in S.regions) if (S.regions[id].name === n) { out.push(S.regions[id]); break; }
+      for (var id in S.regions) {
+        var r = S.regions[id];
+        if (r.name === n || r.base === n) out.push(r);
+      }
     });
     return out;
   }
@@ -364,7 +363,8 @@
     for (var id in S.regions) {
       if (hits.indexOf(S.regions[id]) >= 0) continue;
       var r = S.regions[id];
-      var hay = (r.name + ' ' + r.province + ' ' + (r.city || '')).toLowerCase();
+      var hay = (r.name + ' ' + (r.base || '') + ' ' + r.province + ' ' +
+                 (r.city || '')).toLowerCase();
       if (hay.indexOf(q) >= 0) hits.push(r);
       if (hits.length > 40) break;
     }
@@ -529,6 +529,9 @@
     $('s-labelsource').value = st.labelSource || 'region';
     $('s-labelsize').value = st.labelSize; $('s-labelsize-v').textContent = st.labelSize;
     $('s-borders').checked = st.showBorders;
+    $('s-baseborders').checked = st.showBaseBorders !== false;
+    $('s-bbw').value = st.baseBorderWidth != null ? st.baseBorderWidth : 0.9;
+    $('s-bbw-v').textContent = $('s-bbw').value;
     $('s-provborders').checked = st.showProvBorders;
     $('s-coast').checked = st.showCoast;
     $('s-cities').checked = st.showCities;
@@ -661,11 +664,16 @@
       $('s-labelsize-v').textContent = S.doc.style.labelSize;
       V.updateLabels(true); S.dirty = true;
     };
-    [['s-borders', 'showBorders'], ['s-provborders', 'showProvBorders'],
+    [['s-borders', 'showBorders'], ['s-baseborders', 'showBaseBorders'],
+     ['s-provborders', 'showProvBorders'],
      ['s-coast', 'showCoast'], ['s-cities', 'showCities'],
      ['s-rivers', 'showRivers'], ['s-lakes', 'showLakes']].forEach(function (p) {
       $(p[0]).onchange = function () { S.doc.style[p[1]] = $(p[0]).checked; styleChanged(); };
     });
+    $('s-bbw').oninput = function () {
+      S.doc.style.baseBorderWidth = parseFloat($('s-bbw').value);
+      $('s-bbw-v').textContent = S.doc.style.baseBorderWidth; styleChanged();
+    };
     $('s-bw').oninput = function () {
       S.doc.style.borderWidth = parseFloat($('s-bw').value);
       $('s-bw-v').textContent = S.doc.style.borderWidth; styleChanged();

@@ -47,6 +47,13 @@
       o.push('<path d="' + r.d + '" fill="' + (colors[r.id] || t.unpainted) + '"/>');
     });
     o.push('</g>');
+    if (st.showBaseBorders && M.baseRegions) {
+      o.push('<g fill="none" stroke="' + (t.baseBorder || t.border) + '" stroke-width="' +
+             (st.baseBorderWidth != null ? st.baseBorderWidth : 0.9) +
+             '" stroke-linejoin="round">' +
+             M.baseRegions.map(function (b) { return '<path d="' + b.d + '"/>'; }).join('') +
+             '</g>');
+    }
     if (st.showProvBorders) {
       o.push('<g fill="none" stroke="' + t.provBorder + '" stroke-width="' +
              st.provBorderWidth + '" stroke-linejoin="round">' +

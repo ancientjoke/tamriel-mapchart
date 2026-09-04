@@ -145,12 +145,23 @@
 
   /* --------------------------------------------------------------- resolver */
   var byName = null;
-  function regionIdByName(n) {
+  /** Region ids for a name.  A reference region that was split into several
+      subdivisions answers to its own name, so scenarios keep working. */
+  function regionIdsByName(n) {
     if (!byName) {
       byName = {};
-      for (var id in S.regions) byName[S.regions[id].name.toLowerCase()] = id;
+      for (var id in S.regions) {
+        var r = S.regions[id];
+        [r.name, r.base].forEach(function (k) {
+          if (!k) return;
+          k = k.toLowerCase();
+          (byName[k] = byName[k] || []).push(id);
+        });
+      }
     }
-    return byName[String(n).toLowerCase()] || (S.regions[n] ? n : null);
+    var hit = byName[String(n).toLowerCase()];
+    if (hit) return hit;
+    return S.regions[n] ? [n] : [];
   }
   /** Expand a scenario assignment object into a full colour map. */
   function resolve(assign) {
@@ -168,8 +179,9 @@
           if (col) out[id] = col; else delete out[id];
         });
       } else {
-        var rid = regionIdByName(m[2]);
-        if (rid) { if (col) out[rid] = col; else delete out[rid]; }
+        regionIdsByName(m[2]).forEach(function (rid) {
+          if (col) out[rid] = col; else delete out[rid];
+        });
       }
     });
     return out;

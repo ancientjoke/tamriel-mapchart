@@ -199,10 +199,10 @@
     ],
     'Capitals Only': [
       { name: 'Cyrodiil', color: '#8c2f2a', regions: ['Imperial City'] },
-      { name: 'Skyrim', color: '#3d6f9e', regions: ['Whiterun Hold'] },
+      { name: 'Skyrim', color: '#3d6f9e', regions: ['Whiterun'] },
       { name: 'Morrowind', color: '#5d3a7a', regions: ['Mournhold'] },
       { name: 'High Rock', color: '#2f5f8c', regions: ['Wayrest'] },
-      { name: 'Hammerfell', color: '#b5852f', regions: ['Sentinel'] },
+      { name: 'Hammerfell', color: '#b5852f', regions: ['Hegathe'] },
       { name: 'Summerset', color: '#c9a0c0', regions: ['Alinor'] },
       { name: 'Valenwood', color: '#4a7a35', regions: ['Elden Root'] },
       { name: 'Elsweyr', color: '#c9a13f', regions: ['Torval'] },
@@ -213,16 +213,23 @@
   function expandPreset(name) {
     var def = PRESETS[name];
     if (!def) return [];
+    // a name may cover several subdivisions of one map region
     var byName = {};
-    for (var id in S.regions) byName[S.regions[id].name.toLowerCase()] = id;
+    for (var id in S.regions) {
+      var r = S.regions[id];
+      [r.name, r.base].forEach(function (k) {
+        if (!k) return;
+        k = k.toLowerCase();
+        (byName[k] = byName[k] || []).push(id);
+      });
+    }
     return def.map(function (d) {
       var seeds = [];
       (d.provinces || []).forEach(function (p) {
         (S.byProvince[p] || []).forEach(function (id) { seeds.push(id); });
       });
       (d.regions || []).forEach(function (n) {
-        var id = byName[n.toLowerCase()];
-        if (id) seeds.push(id);
+        (byName[n.toLowerCase()] || []).forEach(function (id) { seeds.push(id); });
       });
       return { name: d.name, color: d.color, power: d.power || 1, seeds: seeds };
     }).filter(function (f) { return f.seeds.length; });
