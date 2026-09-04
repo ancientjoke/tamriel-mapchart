@@ -42,7 +42,8 @@
     bind();
     renderAll();
     setTab('paint');
-    setMode('paint'); setLevel(S.level || 'region');
+    setMode('paint'); setLevel(S.level || 'region', true);
+    setCityMode(!!S.doc.style.showCityDistricts, true);
     setActiveColor(TM.PALETTES.Banners[0], true);
     bindLegendDrag();
 
@@ -371,20 +372,26 @@
   /* ---------- search ---------- */
   /* Lore names people search for that are not themselves regions. */
   var ALIASES = {
-    'vvardenfell': ['Gnisis', "Ald'ruhn", 'Balmora', 'Seyda Neen', 'Vivec', 'Dagon Fel'],
-    'summerset': ['Alinor', 'Cloudrest', 'Dusk', 'Lillandril', 'Shimmerene', 'Sunhold',
-                  'Firsthold'],
-    'holds': ['Solitude', 'Morthal', 'Dawnstar', 'Winterhold', 'Windhelm', 'Whiterun',
-              'Falkreath'],
-    'colovia': ['Anvil', 'Kvatch', 'Skingrad', 'Chorrol', 'Bruma'],
-    'nibenay': ['Imperial City', 'Bravil', 'Leyawiin', 'Cheydinhal'],
+    'vvardenfell': ['West Gash', 'Ashlands', 'Bitter Coast', 'Ascadian Isles', 'Vivec',
+                    'Sheogorad', 'Molag Amur', 'Grazelands', "Azura's Coast"],
+    'summerset': ['Summerset', 'Cloudrest', 'Dusk', 'Lillandril', 'Shimmerene',
+                  'Sunhold', 'Auridon', 'Corgrad Wastes', 'Eton Nir'],
+    'alinor': [],
+    'holds': ['Haafingar', 'Hjaalmarch', 'The Pale', 'Winterhold', 'Eastmarch',
+              'Whiterun Hold', 'Falkreath Hold', 'The Rift'],
+    'colovia': ['Gold Coast', 'Colovian Highlands', 'West Weald', 'Great Forest',
+                'Jerall Mountains'],
+    'nibenay': ['Heartlands', 'Nibenay Basin', 'Nibenay Valley', 'Blackwood',
+                'Valus Mountains'],
     'cyrodiil': [],
-    'argonia': ['Stormhold', 'Thorn', 'Helstrom', 'Gideon', 'Archon', 'Soulrest',
-                'Blackrose'],
-    "alik'r": ['Gilane', 'Taneth', 'Hegathe', 'Rihad', 'Skaven'],
-    'iliac bay': ['Camlorn', 'Wayrest', 'Shornhelm', 'Evermore'],
-    'deshaan': ['Mournhold', 'Narsis', 'Tear'],
-    'telvanni': ['Sadrith Mora', 'Firewatch', 'Necrom']
+    'argonia': ['Shadowfen', 'Thornmarsh', 'Murkmire', 'Arnesia', 'Onkobra',
+                'Helstrom', 'Archon', 'Blackrose'],
+    "alik'r": ["Alik'r Desert", 'Gilane', 'Taneth', 'Hegathe', 'Rihad', 'Khefrem'],
+    'iliac bay': ['Glenumbra', 'Stormhaven', 'Rivenspire', 'Bangkorai'],
+    'deshaan': ['Deshaan', 'Narsis', 'Tear'],
+    'telvanni': ['Telvanni Peninsula', 'Port Telvannis', "Azura's Coast", 'Firewatch'],
+    'dominion': ['Summerset', 'Auridon', 'Grahtwood', 'Malabal Tor', 'Greenshade',
+                 "Reaper's March", 'Torval', 'Senchal', 'Riverhold']
   };
   function aliasHits(q) {
     var names = null;
@@ -583,10 +590,12 @@
     }
     if (S.level === 'region') {
       bits.push(countGroups(S.byBase) + '/' + (S.map.baseRegions || []).length + ' regions painted');
-    } else if (S.level === 'subregion') {
-      bits.push(countGroups(S.bySub) + '/' + (S.map.subRegions || []).length + ' subregions painted');
     } else {
-      bits.push(painted + '/' + S.map.regions.length + ' parcels painted');
+      bits.push(painted + '/' + S.map.regions.length + ' subregions painted');
+    }
+    if (cityMode()) {
+      bits.push(Object.keys(S.doc.cityColors).length + '/' +
+                (S.map.cityDistricts || []).length + ' cities');
     }
     if (selCount()) bits.push(selCount() + ' selected');
     if (S.hover) bits.push(S.regions[S.hover].name + ' · ' + S.regions[S.hover].province);
@@ -606,9 +615,6 @@
     $('s-labelsource').value = st.labelSource || 'region';
     $('s-labelsize').value = st.labelSize; $('s-labelsize-v').textContent = st.labelSize;
     $('s-borders').checked = st.showBorders;
-    $('s-subborders').checked = !!st.showSubBorders;
-    $('s-sbw').value = st.subBorderWidth != null ? st.subBorderWidth : 0.6;
-    $('s-sbw-v').textContent = $('s-sbw').value;
     $('s-capitals').checked = !!st.showCapitals;
     $('s-towns').checked = !!st.showTowns;
     $('s-citynames').checked = !!st.showCityNames;
@@ -711,28 +717,36 @@
     svg.classList.toggle('picking', m === 'pick');
     svg.style.cursor = m === 'select' ? 'pointer' : (m === 'pick' ? 'copy' : 'crosshair');
   }
-  var LEVELS = ['province', 'region', 'subregion', 'parcel', 'city'];
+  var LEVELS = ['province', 'region', 'subregion'];
   function setLevel(l, quiet) {
     if (LEVELS.indexOf(l) < 0) l = 'region';
     S.level = l;
     LEVELS.forEach(function (k) { $('lv-' + k).classList.toggle('on', k === l); });
-    // the original map has no subdivision lines, so each level shows only the
-    // borders you are actually working with
+    // exactly one tier of borders is drawn -- the one you are working with.
+    // Cities are the exception: an independent toggle that rides along.
     var st = S.doc.style;
-    st.showSubBorders = (l === 'subregion' || l === 'parcel');
-    st.showBorders = (l === 'parcel');
-    if (l === 'city') {
-      st.showCityDistricts = true;
-      st.showCapitals = true;
-      st.showTowns = true;
-      $('s-citydistricts').checked = true;
-      $('s-capitals').checked = true;
-      $('s-towns').checked = true;
-    }
+    st.showBorders = (l === 'subregion');
+    st.showBaseBorders = (l === 'region');
+    st.showProvBorders = (l === 'province');
     $('s-borders').checked = st.showBorders;
-    $('s-subborders').checked = st.showSubBorders;
+    $('s-baseborders').checked = st.showBaseBorders;
+    $('s-provborders').checked = st.showProvBorders;
     V.applyTheme();
     if (V.clearHover) V.clearHover();
+    if (!quiet) renderStatus();
+  }
+
+  function cityMode() { return !!S.doc.style.showCityDistricts; }
+  function setCityMode(on, quiet) {
+    var st = S.doc.style;
+    st.showCityDistricts = on;
+    st.showCapitals = on;
+    st.showTowns = on;
+    $('lv-city').classList.toggle('on', on);
+    $('s-citydistricts').checked = on;
+    $('s-capitals').checked = on;
+    $('s-towns').checked = on;
+    V.applyTheme();
     if (!quiet) renderStatus();
   }
 
@@ -747,6 +761,7 @@
     LEVELS.forEach(function (k) {
       $('lv-' + k).onclick = function () { setLevel(k); };
     });
+    $('lv-city').onclick = function () { setCityMode(!cityMode()); };
     $('b-undo').onclick = function () { ST.undo(); };
     $('b-redo').onclick = function () { ST.redo(); };
     $('b-fit').onclick = function () { V.resetView(); };
@@ -820,18 +835,18 @@
       $('s-labelsize-v').textContent = S.doc.style.labelSize;
       V.updateLabels(true); S.dirty = true;
     };
-    [['s-borders', 'showBorders'], ['s-subborders', 'showSubBorders'],
+    [['s-borders', 'showBorders'],
      ['s-baseborders', 'showBaseBorders'], ['s-provborders', 'showProvBorders'],
      ['s-coast', 'showCoast'],
      ['s-capitals', 'showCapitals'], ['s-towns', 'showTowns'],
      ['s-citynames', 'showCityNames'], ['s-citydistricts', 'showCityDistricts'],
      ['s-rivers', 'showRivers'], ['s-lakes', 'showLakes']].forEach(function (p) {
-      $(p[0]).onchange = function () { S.doc.style[p[1]] = $(p[0]).checked; styleChanged(); };
+      $(p[0]).onchange = function () {
+        S.doc.style[p[1]] = $(p[0]).checked;
+        if (p[1] === 'showCityDistricts') $('lv-city').classList.toggle('on', $(p[0]).checked);
+        styleChanged();
+      };
     });
-    $('s-sbw').oninput = function () {
-      S.doc.style.subBorderWidth = parseFloat($('s-sbw').value);
-      $('s-sbw-v').textContent = S.doc.style.subBorderWidth; styleChanged();
-    };
     $('s-stripe').oninput = function () {
       S.doc.style.stripeWidth = parseFloat($('s-stripe').value);
       $('s-stripe-v').textContent = S.doc.style.stripeWidth;
@@ -1059,6 +1074,7 @@
         setLevel(LEVELS[(LEVELS.indexOf(S.level) + 1) % LEVELS.length]);
         break;
       case 'tab': e.preventDefault(); $('side-toggle').onclick(); break;
+      case 'c': setCityMode(!cityMode()); break;
       case 'f':
         TM.setImmersive(!D.getElementById('app').classList.contains('immersive'));
         break;

@@ -184,7 +184,7 @@
       { name: 'Daggerfall Covenant', color: '#2f5f8c', power: 1,
         provinces: ['High Rock', 'Hammerfell'] },
       { name: 'Aldmeri Dominion', color: '#c8b038', power: 1,
-        provinces: ['Summerset Isles', 'Valenwood', 'Elsweyr'] }
+        provinces: ['Alinor', 'Valenwood', 'Anequina', 'Pellitine'] }
     ],
     'Nine Provinces': [
       { name: 'High Rock', color: '#2f5f8c', provinces: ['High Rock'] },
@@ -193,18 +193,18 @@
       { name: 'Cyrodiil', color: '#8c2f2a', provinces: ['Cyrodiil'] },
       { name: 'Morrowind', color: '#5d3a7a', provinces: ['Morrowind'] },
       { name: 'Black Marsh', color: '#2f6b4a', provinces: ['Black Marsh'] },
-      { name: 'Elsweyr', color: '#c9a13f', provinces: ['Elsweyr'] },
+      { name: 'Elsweyr', color: '#c9a13f', provinces: ['Anequina', 'Pellitine'] },
       { name: 'Valenwood', color: '#4a7a35', provinces: ['Valenwood'] },
-      { name: 'Summerset', color: '#c9a0c0', provinces: ['Summerset Isles'] }
+      { name: 'Summerset', color: '#c9a0c0', provinces: ['Alinor'] }
     ],
     'Capitals Only': [
-      { name: 'Cyrodiil', color: '#8c2f2a', regions: ['Imperial City'] },
-      { name: 'Skyrim', color: '#3d6f9e', regions: ['Whiterun'] },
-      { name: 'Morrowind', color: '#5d3a7a', regions: ['Mournhold'] },
-      { name: 'High Rock', color: '#2f5f8c', regions: ['Wayrest'] },
+      { name: 'Cyrodiil', color: '#8c2f2a', regions: ['Heartlands'] },
+      { name: 'Skyrim', color: '#3d6f9e', regions: ['Whiterun Hold'] },
+      { name: 'Morrowind', color: '#5d3a7a', regions: ['Deshaan'] },
+      { name: 'High Rock', color: '#2f5f8c', regions: ['Stormhaven'] },
       { name: 'Hammerfell', color: '#b5852f', regions: ['Hegathe'] },
-      { name: 'Summerset', color: '#c9a0c0', regions: ['Alinor'] },
-      { name: 'Valenwood', color: '#4a7a35', regions: ['Elden Root'] },
+      { name: 'Alinor', color: '#c9a0c0', regions: ['Summerset'] },
+      { name: 'Valenwood', color: '#4a7a35', regions: ['Grahtwood'] },
       { name: 'Elsweyr', color: '#c9a13f', regions: ['Torval'] },
       { name: 'Black Marsh', color: '#2f6b4a', regions: ['Helstrom'] }
     ]

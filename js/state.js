@@ -12,7 +12,7 @@
     // ordered to match PROVINCE_ORDER, and chosen so no two neighbouring
     // provinces land on the same tone
     'Provinces': ['#6f9dc4', '#e0b45f', '#b9d2e2', '#c98a5e', '#a98fb5', '#6fa87e',
-                  '#e8d38a', '#8fc47a', '#d0a0c8', '#b0b8c0', '#cfc3a4', '#9aa88f'],
+                  '#eddc9a', '#d4b25e', '#8fc47a', '#d0a0c8', '#b0b8c0', '#9aa88f'],
     'Daedric':  ['#6d1f2b', '#1f3f6d', '#274d2b', '#6d5a1f', '#4a1f6d', '#1f5a5a',
                  '#8f3a1f', '#2b2b2b', '#0f0f14', '#8f7a3a', '#3a1f1f', '#1f2b1f'],
     'Ashen':    ['#c96f4a', '#6f4a3a', '#8a8578', '#4a4a52', '#b09a6a', '#3a4a4a',

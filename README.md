@@ -13,8 +13,7 @@ toolbar:
 | **Region** | one of the reference map's own 89 regions — the default |
 | **Subregion** | one of the 199 finer subdivisions |
 
-Each level shows only the borders you are working with, so at Province and Region
-the map looks exactly like the original. The map carries no names, like the
+At Province level the map looks exactly like the original. The map carries no names, like the
 reference — though **capital cities**, **other cities** and **city names** are all
 layers you can switch on in Style, with capitals drawn larger. Zoom goes to about
 200×, and the panel folds away with <kbd>Tab</kbd> to give the map the full window.
@@ -49,7 +48,7 @@ coastline much darker, labels darker still. `tools/trace_ref.py`:
    the region adjacency so provinces stay contiguous. Where two labels probe into
    the same region the loser is re-homed to the nearest free one; anything left
    over is named for where it sits in its province ("Skyrim North").
-6. **Adds depth in two rounds** — region → subregion → sub-subregion — by
+6. **Adds depth** — region → subregion — by
    repeatedly bisecting the largest parcel with a wandering cut across its short
    axis. k-means was the obvious choice and the wrong one: it leaves interior
    clusters, which come out as discs, very obvious on the big southern regions.
@@ -92,10 +91,11 @@ draws its borders in a hierarchy. The **Fill** switch sets a sensible default, a
 
 | Tier | What it is |
 |---|---|
-| Province | the nine provinces, heaviest |
+| Province | the ten provinces |
 | Map region | the 89 regions traced from the reference |
 | Subregion | 188 subdivisions |
-| Sub-subregion | 429 parcels, lightest |
+
+Only one is visible at a time, chosen by the Fill switch.
 
 Border widths are in map units but thin as you zoom in, so they stay readable at
 200× instead of swallowing the map.
@@ -114,10 +114,24 @@ and both show up in the legend and in exports.
 
 ## City mode
 
-Every city has a circular district around it, clipped to its own province so no
-disc bleeds across a border. Switch **Fill** to *City* and clicking colours those
-discs; unpainted ones show as a dashed circular outline. Capitals get a larger
+Each of the 69 cities has a **true circular district** around it. Toggle
+<kbd>C</kbd> (or the City button) and clicking a disc colours it, at whatever fill
+level you are on; unpainted discs show as a dashed circle. Capitals get a larger
 disc and a filled marker.
+
+## Lore
+
+Provinces follow the Fourth Era, per Lady Norevar's *Tamriel and its Nations*
+(4E 200): Summerset is **Alinor**, and Elsweyr is not one polity but the two
+Khajiiti kingdoms of **Anequina** in the north and **Pellitine** in the south —
+ten provinces, each tagged with the nation that holds it (Mede Empire, Aldmeri
+Dominion, Hammerfell, Morrowind, Black Marsh).
+
+Regions carry their lore names where lore gives them one distinct from their seat
+— Solitude sits in Haafingar, Wayrest in Stormhaven, Anvil on the Gold Coast,
+Balmora on the Bitter Coast — with the city kept as a separate field, the way both
+reference maps label them. Regions whose name lore leaves open keep their
+city-state name.
 
 ## What's in it
 
@@ -169,7 +183,7 @@ painting, or every timeline frame as its own PNG.
 <kbd>K</kbd> capture frame · <kbd>Space</kbd> play/pause ·
 <kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> undo/redo ·
 <kbd>Ctrl</kbd>+<kbd>S</kbd> save · <kbd>0</kbd> fit · <kbd>+</kbd>/<kbd>−</kbd> zoom ·
-<kbd>F</kbd> immersive · <kbd>Esc</kbd> clear selection
+<kbd>C</kbd> city mode · <kbd>F</kbd> immersive · <kbd>Esc</kbd> clear selection
 
 ## Layout
 
@@ -183,8 +197,8 @@ js/timeline.js           keyframes, cross-fade playback, the built-in histories
 js/sim.js                the faction growth simulator
 js/exporter.js           standalone SVG, PNG, JSON, CSV
 js/ui.js                 panels, bindings, overlays, the event bus
-data/tamriel-map.js      generated geometry (429 parcels, 188 subregions, 89 map
-                         regions, 9 provinces, 69 city districts)
+data/tamriel-map.js      generated geometry (188 subregions, 89 map regions,
+                         10 provinces, 69 city districts)
 tools/trace_ref.py       the tracer
 tools/bundle.py          single-file build
 ```

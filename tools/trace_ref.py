@@ -51,8 +51,7 @@ TARGET_AREA = 2500        # px: aim for subdivisions around this size
 MAX_SPLIT = 5
 SPLIT_WOBBLE = 0.21       # how far a cut wanders, as a fraction of its length
 SUB_AREA = 2600           # px: target size of a subregion
-SUBSUB_AREA = 1150        # px: target size of a sub-subregion
-SEA_LINK = 9              # px: parcels this close across water count as neighbours
+SEA_LINK = 14             # px: parcels this close across water count as neighbours
 CITY_RADIUS = 13.0        # px: reach of a city district
 CHAIKIN = 2
 SIMPLIFY = 0.6
@@ -120,14 +119,83 @@ CITIES = [
 ]
 
 PROVINCE_ORDER = ["High Rock", "Hammerfell", "Skyrim", "Cyrodiil", "Morrowind",
-                  "Black Marsh", "Elsweyr", "Valenwood", "Summerset Isles"]
+                  "Black Marsh", "Anequina", "Pellitine", "Valenwood", "Alinor"]
+
+# ---------------------------------------------------------------------------
+# Lore, as of 4E 200 (the "Tamriel and its Nations" reference).
+#
+# The provinces are renamed to their Fourth Era forms -- Summerset is Alinor,
+# and Elsweyr is not one polity but the two kingdoms of Anequina in the north
+# and Pellitine in the south -- and each is tagged with the nation that holds
+# it, which is what the reference actually colours.
+# ---------------------------------------------------------------------------
+PROVINCE_RENAME = {"Summerset Isles": "Alinor"}
+# Elsweyr splits on latitude: Anequina's plains north, Pellitine's jungle south
+ELSWEYR_SPLIT_Y = 555.0
+
+# where the trace's label matching seated a region on the wrong city
+CITY_FIX = {"The Rift": "Riften"}
+
+NATIONS = {
+    "High Rock": "Mede Empire", "Skyrim": "Mede Empire", "Cyrodiil": "Mede Empire",
+    "Hammerfell": "Hammerfell", "Morrowind": "Morrowind", "Black Marsh": "Black Marsh",
+    "Alinor": "Aldmeri Dominion", "Valenwood": "Aldmeri Dominion",
+    "Anequina": "Aldmeri Dominion", "Pellitine": "Aldmeri Dominion",
+}
+
+# Where lore gives a region a name of its own, the city becomes just the seat.
+# Only mappings that are canonical and unambiguous are listed; anything absent
+# keeps its city-state name, which is how both reference maps label them.
+LORE_REGIONS = {
+    # Skyrim's nine holds
+    "Solitude": "Haafingar", "Morthal": "Hjaalmarch", "Dawnstar": "The Pale",
+    "Falkreath": "The Rift",   # this one traced to south-east Skyrim, not the south
+    "Windhelm": "Eastmarch", "Whiterun": "Whiterun Hold",
+    # High Rock's regions
+    "Northpoint": "Rivenspire", "Camlorn": "Glenumbra",
+    "Wayrest": "Stormhaven", "Evermore": "Bangkorai",
+    # Cyrodiil's regions
+    "Bruma": "Jerall Mountains", "Chorrol": "Great Forest",
+    "Imperial City": "Heartlands", "Cheydinhal": "Valus Mountains",
+    "Skingrad": "West Weald", "Kvatch": "Colovian Highlands",
+    "Anvil": "Gold Coast", "Bravil": "Nibenay Basin", "Leyawiin": "Blackwood",
+    # Hammerfell
+    "Dragonstar": "Dragontail Mountains", "Elinhir": "Craglorn",
+    "Skaven": "Alik'r Desert",
+    # Vvardenfell and the Morrowind mainland
+    "Gnisis": "West Gash", "Ald'ruhn": "Ashlands", "Balmora": "Bitter Coast",
+    "Seyda Neen": "Ascadian Isles", "Mournhold": "Deshaan",
+    "Sadrith Mora": "Azura's Coast", "Dagon Fel": "Sheogorad",
+    "Necrom": "Telvanni Peninsula",
+    # the Dominion
+    "Elden Root": "Grahtwood", "Silvenar": "Malabal Tor",
+    "Greenheart": "Greenshade", "Arenthia": "Reaper's March",
+    "Firsthold": "Auridon", "Alinor": "Summerset",
+    "Stormhold": "Shadowfen", "Gideon": "Murkmire",
+}
+
+# Compass placeholders replaced with the feature the reference labels there.
+LORE_PLACEHOLDERS = {
+    "Skyrim North": "Icy Coast", "Skyrim North-East": "Broken Cape",
+    "Skyrim East": "Winterhold Coast", "Skyrim South": "Falkreath Hold",
+    "Hammerfell South-East": "Brena Valley", "Hammerfell South": "Khefrem",
+    "Cyrodiil South-East": "Nibenay Valley",
+    "Morrowind North": "Grazelands", "Morrowind North-East": "Port Telvannis",
+    "Morrowind North-East II": "Firewatch Coast", "Morrowind Central": "Molag Amur",
+    "Morrowind Central II": "Zafirbel Bay", "Morrowind South-East": "Boethiah's Spine",
+    "Black Marsh North-West": "Arnesia", "Black Marsh West": "Thornmarsh",
+    "Black Marsh South-West": "Alten Corimont", "Black Marsh South": "Onkobra",
+    "Black Marsh South II": "Xanmeer Basin",
+    "Alinor South-West": "Corgrad Wastes", "Alinor South": "Eton Nir",
+    "Anequina Central": "Northern Woods", "Pellitine Central": "Tenmar Forest",
+}
 
 # the seat of each province, drawn larger than the other cities
 CAPITALS = {
-    "High Rock": "Wayrest", "Hammerfell": "Sentinel", "Skyrim": "Solitude",
-    "Cyrodiil": "Imperial City", "Morrowind": "Mournhold",
-    "Black Marsh": "Helstrom", "Elsweyr": "Torval", "Valenwood": "Elden Root",
-    "Summerset Isles": "Alinor",
+    "High Rock": "Stormhaven", "Hammerfell": "Sentinel", "Skyrim": "Haafingar",
+    "Cyrodiil": "Heartlands", "Morrowind": "Deshaan",
+    "Black Marsh": "Helstrom", "Anequina": "Riverhold", "Pellitine": "Torval",
+    "Valenwood": "Grahtwood", "Alinor": "Summerset",
 }
 
 
@@ -315,6 +383,7 @@ def name_regions(lab):
         name[rid] = cname
         prov[rid] = cprov
         CITY_AT[rid] = [float(cx), float(cy) + 9.0]
+        CITY_NAME[rid] = cname
     # A few labels sit close enough together that the probe picks the wrong
     # region.  Hand whatever cities are left to the nearest region still
     # without a name, so the map keeps meaningful names throughout.
@@ -335,6 +404,7 @@ def name_regions(lab):
         name[rid] = cname
         prov[rid] = cprov
         CITY_AT[rid] = [float(cx), float(cy) + 9.0]
+        CITY_NAME[rid] = cname
         took_c.add(cname); took_r.add(rid)
     if unmatched:
         print("re-homed     : %d label(s) the probe put in a neighbour's region"
@@ -677,13 +747,27 @@ def main():
     base_cent = {i: ndimage.center_of_mass(lab == i)
                  for i in np.unique(lab[lab > 0]).tolist()}
 
-    # two rounds of cutting: map region -> subregion -> sub-subregion
+    # --- lore pass: province forms, the Elsweyr split, and region names -----
+    renamed = 0
+    for bid in list(base_prov):
+        pv = base_prov[bid]
+        if pv == "Elsweyr":
+            cy = base_cent[bid][0] if bid in base_cent else 0
+            base_prov[bid] = "Anequina" if cy < ELSWEYR_SPLIT_Y else "Pellitine"
+        elif pv in PROVINCE_RENAME:
+            base_prov[bid] = PROVINCE_RENAME[pv]
+    for bid, nm in list(base_name.items()):
+        new = LORE_REGIONS.get(nm) or LORE_PLACEHOLDERS.get(nm)
+        if new and new != nm:
+            base_name[bid] = new
+            renamed += 1
+    print("lore pass    : %d regions renamed, provinces -> %s"
+          % (renamed, ", ".join(sorted(set(base_prov.values())))))
+
+    # one round of cutting: map region -> subregion
     lab, p2 = subdivide(lab, SUB_AREA, 5, land, "subregions")
-    sub_of_lab = lab.copy()
-    lab, p3 = subdivide(lab, SUBSUB_AREA, 4, land, "sub-subregions")
-    # child -> subregion, and child -> map region
-    sub_parent = {c: p3.get(c, c) for c in np.unique(lab[lab > 0]).tolist()}
-    parent = {c: p2.get(sub_parent[c], sub_parent[c]) for c in sub_parent}
+    sub_parent = {c: c for c in np.unique(lab[lab > 0]).tolist()}
+    parent = {c: p2.get(c, c) for c in sub_parent}
     adj = region_adjacency(lab)
 
     ids = np.unique(lab[lab > 0]).tolist()
@@ -716,20 +800,15 @@ def main():
             key = (pv, where)
             used_compass[key] = used_compass.get(key, 0) + 1
             n = used_compass[key]
-            base_name[p] = "%s %s%s" % (pv, where, "" if n == 1 else " " + ROMAN[n - 1])
+            nm2 = "%s %s%s" % (pv, where, "" if n == 1 else " " + ROMAN[n - 1])
+            base_name[p] = LORE_PLACEHOLDERS.get(nm2, nm2)
 
     for p, kids in sibling.items():
         base = base_name.get(p) or ("%s %d" % (base_prov.get(p, "Region"), p))
         pv = base_prov.get(p, "Cyrodiil")
         kids.sort()
-        subs = sorted(set(sub_parent[k] for k in kids))
-        for k in kids:
-            si = subs.index(sub_parent[k])
-            sibs = sorted(sub_sibling[sub_parent[k]])
-            nm = base if len(subs) == 1 else "%s %s" % (base, ROMAN[si])
-            if len(sibs) > 1:
-                nm = "%s%s" % (nm, " ABCDEFGH"[sibs.index(k) + 1])
-            final_name[k] = nm
+        for i, k in enumerate(kids):
+            final_name[k] = base if len(kids) == 1 else "%s %s" % (base, ROMAN[i])
             final_prov[k] = pv
 
     print("vectorising  : %d regions" % len(ids))
@@ -793,6 +872,7 @@ def main():
         base_groups.setdefault(parent.get(rid, rid), []).append(rid)
     base_id_of = {}
     city_at = {b: [round(v[0], 1), round(v[1], 1)] for b, v in CITY_AT.items()}
+
     for bid in sorted(base_groups):
         nm = base_name.get(bid) or ("%s %d" % (base_prov.get(bid, "Region"), bid))
         cand = "%s_%s" % (slug(base_prov.get(bid, "region")), slug(nm))
@@ -848,7 +928,7 @@ def main():
             label=[round(lx, 1), round(ly, 1)], area=round(u.area, 1),
             regions=sorted(id_of[k] for k in kids if k in id_of))
         if bid in city_at:
-            rec["city"] = nm
+            rec["city"] = CITY_FIX.get(nm) or CITY_NAME.get(bid, nm)
             rec["cityAt"] = city_at[bid]
             rec["capital"] = (CAPITALS.get(pv) == nm)
         base_regions.append(rec)
@@ -887,7 +967,8 @@ def main():
         u = unary_union(mine).buffer(0.7).buffer(-0.7)
         lx, ly = pole(u, step=8.0)
         u = u.simplify(OUTLINE_SIMPLIFY)
-        provinces.append(dict(name=pname, d=geom_path(u),
+        provinces.append(dict(name=pname, nation=NATIONS.get(pname, pname),
+                              d=geom_path(u),
                               label=[round(lx, 1), round(ly, 1)],
                               area=round(u.area, 1),
                               regions=sorted(id_of[r] for r in geoms
@@ -895,32 +976,18 @@ def main():
 
     # circular city districts -- a city-state's reach around its seat, clipped
     # to its own province so a disc never bleeds across a border
-    from shapely.geometry import Point as _Pt
-    prov_geom = {}
-    for prec in provinces:
-        prov_geom[prec["name"]] = unary_union(
-            [geoms[r] for r in geoms if final_prov[r] == prec["name"]])
     city_districts = []
     for brec in base_regions:
         if not brec.get("city"):
             continue
+        # a plain circle: the reference draws city reach as a disc, and
+        # clipping it to the coast made it read as a lumpy blob
         r = CITY_RADIUS * (1.55 if brec.get("capital") else 1.0)
-        disc = _Pt(brec["cityAt"][0], brec["cityAt"][1]).buffer(r, quad_segs=24)
-        g = disc.intersection(land_geom)
-        pg = prov_geom.get(brec["province"])
-        if pg is not None and not pg.is_empty:
-            g2 = g.intersection(pg)
-            if not g2.is_empty and g2.area > disc.area * 0.15:
-                g = g2
-        if isinstance(g, MultiPolygon):
-            g = max(g.geoms, key=lambda q: q.area)
-        if g.is_empty or g.area < 12:
-            continue
         city_districts.append(dict(
             id="city_" + slug(brec["city"]), name=brec["city"],
+            region=brec["name"],
             province=brec["province"], capital=bool(brec.get("capital")),
-            baseId=brec["id"], at=brec["cityAt"], r=round(r, 1),
-            d=geom_path(g.simplify(0.25))))
+            baseId=brec["id"], at=brec["cityAt"], r=round(r, 1)))
     print("city discs   : %d (%d capitals)"
           % (len(city_districts), sum(1 for c in city_districts if c["capital"])))
 
@@ -931,8 +998,7 @@ def main():
                 round(b[2] - b[0] + 20, 1), round(b[3] - b[1] + 20, 1)],
         land=[geom_path(land_draw)],
         scenery=[], lakes=[], rivers=[],
-        provinces=provinces, baseRegions=base_regions,
-        subRegions=sub_regions, regions=out_regions,
+        provinces=provinces, baseRegions=base_regions, regions=out_regions,
         cityDistricts=city_districts,
     )
     out = os.path.join(ROOT, "data", "tamriel-map.js")
@@ -957,6 +1023,7 @@ def main():
 
 ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"]
 CITY_AT = {}
+CITY_NAME = {}
 LAND_REF = None
 
 if __name__ == "__main__":

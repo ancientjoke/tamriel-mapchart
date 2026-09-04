@@ -5,7 +5,7 @@
   'use strict';
   var TM = W.TM, S = TM.S, D = document, NS = 'http://www.w3.org/2000/svg';
 
-  var svg, defs, gSea, gLand, gScenery, gRegions, gOcc, gSub, gBase, gProv,
+  var svg, defs, gSea, gLand, gScenery, gRegions, gOcc, gBase, gProv,
       gWater, gCoast, gCityD, gCity, gLabel;
   var stage, tip;
   var view = { x: 0, y: 0, w: 1000, h: 700 };
@@ -37,22 +37,15 @@
     S.map = mapData; stage = stageEl; tip = tipEl;
     S.regions = {}; S.byProvince = {};
     S.baseRegions = {}; S.byBase = {}; S.provBases = {};
-    S.subRegions = {}; S.bySub = {}; S.basesOfSub = {};
     (mapData.baseRegions || []).forEach(function (b) {
       S.baseRegions[b.id] = b;
       S.byBase[b.id] = [];
       (S.provBases[b.province] = S.provBases[b.province] || []).push(b.id);
     });
-    (mapData.subRegions || []).forEach(function (b) {
-      S.subRegions[b.id] = b;
-      S.bySub[b.id] = [];
-      S.basesOfSub[b.id] = b.baseId;
-    });
     mapData.regions.forEach(function (r) {
       S.regions[r.id] = r;
       (S.byProvince[r.province] = S.byProvince[r.province] || []).push(r.id);
       if (r.baseId && S.byBase[r.baseId]) S.byBase[r.baseId].push(r.id);
-      if (r.subId && S.bySub[r.subId]) S.bySub[r.subId].push(r.id);
     });
 
     svg = el('svg', { id: 'map', xmlns: NS, 'shape-rendering': 'geometricPrecision' });
@@ -64,7 +57,6 @@
     gRegions = el('g', { id: 'g-regions' });
     gOcc = el('g', { id: 'g-occ', stroke: 'none' });
     gCityD = el('g', { id: 'g-cityd', 'stroke-linejoin': 'round' });
-    gSub = el('g', { id: 'g-sub', fill: 'none', 'stroke-linejoin': 'round' });
     gBase = el('g', { id: 'g-base', fill: 'none', 'stroke-linejoin': 'round' });
     gProv = el('g', { id: 'g-prov', fill: 'none', 'stroke-linejoin': 'round' });
     gWater = el('g', { id: 'g-water' });
@@ -72,7 +64,7 @@
     gCity = el('g', { id: 'g-city' });
     gLabel = el('g', { id: 'g-label', 'text-anchor': 'middle',
       'font-family': '"Segoe UI",Inter,system-ui,sans-serif', 'paint-order': 'stroke' });
-    [gSea, gLand, gScenery, gRegions, gOcc, gCityD, gSub, gBase, gProv,
+    [gSea, gLand, gScenery, gRegions, gOcc, gCityD, gBase, gProv,
      gWater, gCoast, gCity, gLabel]
       .forEach(function (g) { svg.appendChild(g); });
 
@@ -91,13 +83,11 @@
       gOcc.appendChild(o);
     });
     (mapData.cityDistricts || []).forEach(function (c) {
-      var p = el('path', { d: c.d, 'class': 'citydistrict' });
+      // a true circle, not a clipped path: a city's reach reads as a disc
+      var p = el('circle', { cx: c.at[0], cy: c.at[1], r: c.r, 'class': 'citydistrict' });
       p.__city = c.id;
       cityPaths[c.id] = p;
       gCityD.appendChild(p);
-    });
-    (mapData.subRegions || []).forEach(function (b) {
-      gSub.appendChild(el('path', { d: b.d }));
     });
     (mapData.baseRegions || []).forEach(function (b) {
       gBase.appendChild(el('path', { d: b.d }));
@@ -155,7 +145,6 @@
     var st = S.doc.style, ss = strokeScale();
     if (!gRegions) return;
     gRegions.setAttribute('stroke-width', st.borderWidth * ss);
-    gSub.setAttribute('stroke-width', (st.subBorderWidth != null ? st.subBorderWidth : 0.6) * ss);
     gBase.setAttribute('stroke-width', (st.baseBorderWidth != null ? st.baseBorderWidth : 0.9) * ss);
     gProv.setAttribute('stroke-width', st.provBorderWidth * ss);
     gCoast.setAttribute('stroke-width', Math.max(0.8, st.provBorderWidth * 0.75) * ss);
@@ -195,8 +184,6 @@
       e.setAttribute('stroke-width', 1.5);
       e.style.display = st.showRivers ? '' : 'none';
     });
-    gSub.setAttribute('stroke', st.showSubBorders ? (t.subBorder || t.border) : 'none');
-    gSub.setAttribute('stroke-width', (st.subBorderWidth != null ? st.subBorderWidth : 0.6) * ss);
     styleCities();
     gLabel.setAttribute('fill', t.label);
     gLabel.setAttribute('stroke', t.labelHalo);
@@ -464,9 +451,6 @@
     if (S.level === 'region' && r.baseId && S.byBase[r.baseId]) {
       return S.byBase[r.baseId].slice();
     }
-    if (S.level === 'subregion' && r.subId && S.bySub[r.subId]) {
-      return S.bySub[r.subId].slice();
-    }
     return [id];
   }
   TM.idsFor = idsFor;
@@ -512,7 +496,7 @@
         return;
       }
       var cid = cityAt(e);
-      if (cid && S.level === 'city') {
+      if (cid && S.doc.style.showCityDistricts) {
         S.scrubbing = false;
         TM.state.setCityColor([cid],
           (e.altKey || e.ctrlKey || e.metaKey) ? null : S.activeColor);
