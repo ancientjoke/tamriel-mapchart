@@ -5,7 +5,7 @@
   'use strict';
   var TM = W.TM, S = TM.S, NS = 'http://www.w3.org/2000/svg';
 
-  var svg, gSea, gLand, gScenery, gRegions, gBase, gProv, gWater, gCoast, gCity, gLabel;
+  var svg, gSea, gLand, gScenery, gRegions, gSub, gBase, gProv, gWater, gCoast, gCity, gLabel;
   var stage, tip;
   var view = { x: 0, y: 0, w: 1000, h: 700 };
   var fit = { x: 0, y: 0, w: 1000, h: 700 };
@@ -15,7 +15,7 @@
   var provPaths = {};
   var painting = false, panning = false, panStart = null, lastPainted = null;
   var hoverSet = [];
-  var MIN_W = 60, MAX_W = 4000;
+  var MIN_W = 5, MAX_W = 4000;   // MIN_W sets the deepest zoom (~200x)
 
   function el(n, a) {
     var e = document.createElementNS(NS, n);
@@ -33,15 +33,22 @@
     S.map = mapData; stage = stageEl; tip = tipEl;
     S.regions = {}; S.byProvince = {};
     S.baseRegions = {}; S.byBase = {}; S.provBases = {};
+    S.subRegions = {}; S.bySub = {}; S.basesOfSub = {};
     (mapData.baseRegions || []).forEach(function (b) {
       S.baseRegions[b.id] = b;
       S.byBase[b.id] = [];
       (S.provBases[b.province] = S.provBases[b.province] || []).push(b.id);
     });
+    (mapData.subRegions || []).forEach(function (b) {
+      S.subRegions[b.id] = b;
+      S.bySub[b.id] = [];
+      S.basesOfSub[b.id] = b.baseId;
+    });
     mapData.regions.forEach(function (r) {
       S.regions[r.id] = r;
       (S.byProvince[r.province] = S.byProvince[r.province] || []).push(r.id);
       if (r.baseId && S.byBase[r.baseId]) S.byBase[r.baseId].push(r.id);
+      if (r.subId && S.bySub[r.subId]) S.bySub[r.subId].push(r.id);
     });
 
     svg = el('svg', { id: 'map', xmlns: NS, 'shape-rendering': 'geometricPrecision' });
@@ -49,6 +56,7 @@
     gLand = el('g', { id: 'g-land' });
     gScenery = el('g', { id: 'g-scenery' });
     gRegions = el('g', { id: 'g-regions' });
+    gSub = el('g', { id: 'g-sub', fill: 'none', 'stroke-linejoin': 'round' });
     gBase = el('g', { id: 'g-base', fill: 'none', 'stroke-linejoin': 'round' });
     gProv = el('g', { id: 'g-prov', fill: 'none', 'stroke-linejoin': 'round' });
     gWater = el('g', { id: 'g-water' });
@@ -56,7 +64,7 @@
     gCity = el('g', { id: 'g-city' });
     gLabel = el('g', { id: 'g-label', 'text-anchor': 'middle',
       'font-family': '"Segoe UI",Inter,system-ui,sans-serif', 'paint-order': 'stroke' });
-    [gSea, gLand, gScenery, gRegions, gBase, gProv, gWater, gCoast, gCity, gLabel]
+    [gSea, gLand, gScenery, gRegions, gSub, gBase, gProv, gWater, gCoast, gCity, gLabel]
       .forEach(function (g) { svg.appendChild(g); });
 
     gSea.appendChild(el('rect', { id: 'searect' }));
@@ -68,6 +76,9 @@
       p.__id = r.id;
       paths[r.id] = p;
       gRegions.appendChild(p);
+    });
+    (mapData.subRegions || []).forEach(function (b) {
+      gSub.appendChild(el('path', { d: b.d }));
     });
     (mapData.baseRegions || []).forEach(function (b) {
       gBase.appendChild(el('path', { d: b.d }));
@@ -90,11 +101,17 @@
       t.textContent = r.name;
       labels[r.id] = t;
       gLabel.appendChild(t);
-      if (r.city) {
-        var c = el('circle', { cx: r.cityAt[0], cy: r.cityAt[1] + 3.2, r: 1.5 });
-        cityDots[r.id] = c;
-        gCity.appendChild(c);
-      }
+    });
+    (mapData.baseRegions || []).forEach(function (b) {
+      if (!b.city) return;
+      var g = el('g', { 'class': b.capital ? 'city capital' : 'city town' });
+      g.appendChild(el('circle', { cx: b.cityAt[0], cy: b.cityAt[1], r: 1.6 }));
+      var t = el('text', { x: b.cityAt[0], y: b.cityAt[1] - 2.6 });
+      t.textContent = b.city;
+      g.appendChild(t);
+      g.__cy = b.cityAt[1];
+      cityDots[b.id] = g;
+      gCity.appendChild(g);
     });
 
     stage.querySelector('#svgwrap').appendChild(svg);
@@ -106,8 +123,30 @@
   }
 
   /* ------------------------------------------------------------------ theme */
+  /** Border widths are in map units, so at deep zoom they would swallow the
+      map.  Thin them as you go in, but not linearly -- they should stay
+      visible. */
+  function strokeScale() {
+    var k = fit.w / view.w;
+    return k <= 1 ? 1 : 1 / Math.pow(k, 0.72);
+  }
+
+  /** Re-apply only the zoom-dependent stroke widths (cheap, runs on pan/zoom). */
+  function applyStrokes() {
+    var st = S.doc.style, ss = strokeScale();
+    if (!gRegions) return;
+    gRegions.setAttribute('stroke-width', st.borderWidth * ss);
+    gSub.setAttribute('stroke-width', (st.subBorderWidth != null ? st.subBorderWidth : 0.6) * ss);
+    gBase.setAttribute('stroke-width', (st.baseBorderWidth != null ? st.baseBorderWidth : 0.9) * ss);
+    gProv.setAttribute('stroke-width', st.provBorderWidth * ss);
+    gCoast.setAttribute('stroke-width', Math.max(0.8, st.provBorderWidth * 0.75) * ss);
+    Array.prototype.forEach.call(gWater.querySelectorAll('.river'), function (e) {
+      e.setAttribute('stroke-width', 1.5 * ss);
+    });
+  }
+
   function applyTheme() {
-    var t = theme(), st = S.doc.style;
+    var t = theme(), st = S.doc.style, ss = strokeScale();
     stage.style.background = t.sea;
     var sr = svg.querySelector('#searect');
     sr.setAttribute('fill', t.sea);
@@ -116,13 +155,13 @@
     gScenery.setAttribute('fill', t.land);
     gScenery.setAttribute('stroke', 'none');
     gRegions.setAttribute('stroke', st.showBorders ? t.border : 'none');
-    gRegions.setAttribute('stroke-width', st.borderWidth);
+    gRegions.setAttribute('stroke-width', st.borderWidth * ss);
     gBase.setAttribute('stroke', st.showBaseBorders ? (t.baseBorder || t.border) : 'none');
-    gBase.setAttribute('stroke-width', st.baseBorderWidth != null ? st.baseBorderWidth : 0.9);
+    gBase.setAttribute('stroke-width', (st.baseBorderWidth != null ? st.baseBorderWidth : 0.9) * ss);
     gProv.setAttribute('stroke', st.showProvBorders ? t.provBorder : 'none');
-    gProv.setAttribute('stroke-width', st.provBorderWidth);
+    gProv.setAttribute('stroke-width', st.provBorderWidth * ss);
     gCoast.setAttribute('stroke', st.showCoast ? t.coast : 'none');
-    gCoast.setAttribute('stroke-width', Math.max(0.8, st.provBorderWidth * 0.75));
+    gCoast.setAttribute('stroke-width', Math.max(0.8, st.provBorderWidth * 0.75) * ss);
     gWater.style.display = (st.showLakes || st.showRivers) ? '' : 'none';
     Array.prototype.forEach.call(gWater.querySelectorAll('.lake'), function (e) {
       e.setAttribute('fill', t.water);
@@ -135,13 +174,41 @@
       e.setAttribute('stroke-width', 1.5);
       e.style.display = st.showRivers ? '' : 'none';
     });
-    gCity.setAttribute('fill', t.cityFill);
-    gCity.setAttribute('stroke', t.city);
-    gCity.setAttribute('stroke-width', 0.5);
-    gCity.style.display = st.showCities ? '' : 'none';
+    gSub.setAttribute('stroke', st.showSubBorders ? (t.subBorder || t.border) : 'none');
+    gSub.setAttribute('stroke-width', (st.subBorderWidth != null ? st.subBorderWidth : 0.6) * ss);
+    styleCities();
     gLabel.setAttribute('fill', t.label);
     gLabel.setAttribute('stroke', t.labelHalo);
     updateLabels(true);
+  }
+
+  /** Capitals and towns are separate layers with their own sizes. */
+  function styleCities() {
+    var st = S.doc.style, t = theme();
+    var k = fit.w / view.w;
+    var base = (st.cityScale || 1) / Math.pow(k, 0.55);
+    Array.prototype.forEach.call(gCity.children, function (g) {
+      var cap = g.classList.contains('capital');
+      var on = cap ? st.showCapitals : st.showTowns;
+      g.style.display = on ? '' : 'none';
+      if (!on) return;
+      var r = (cap ? 2.6 : 1.5) * base;
+      var c = g.querySelector('circle');
+      c.setAttribute('r', r);
+      c.setAttribute('fill', cap ? t.city : t.cityFill);
+      c.setAttribute('stroke', t.city);
+      c.setAttribute('stroke-width', Math.max(0.12, 0.55 * base));
+      var tx = g.querySelector('text');
+      var fs = (cap ? 8.0 : 6.4) * base;
+      // a name only earns its place once it is big enough on screen to read
+      var onScreen = fs * (stage.clientWidth / view.w);
+      tx.style.display = (st.showCityNames && onScreen >= 8) ? '' : 'none';
+      tx.setAttribute('font-size', fs);
+      tx.setAttribute('y', g.__cy - r - fs * 0.32);
+      tx.setAttribute('fill', t.label);
+      tx.setAttribute('stroke', t.labelHalo);
+      tx.setAttribute('stroke-width', fs * 0.09);
+    });
   }
 
   /* ----------------------------------------------------------------- labels */
@@ -156,10 +223,12 @@
     var st = S.doc.style;
     var k = fit.w / view.w;                      // current zoom factor vs. fit
     var fs = Math.max(0.9, st.labelSize / Math.pow(k, 0.82));
+    styleCities();                       // city layers size with zoom too
+    applyStrokes();                      // and borders thin as you go in
     gLabel.style.display = st.labelMode === 'none' ? 'none' : '';
     if (st.labelMode === 'none') { lastCull = null; return; }
     gLabel.setAttribute('font-size', fs);
-    gLabel.setAttribute('stroke-width', fs * 0.24);
+    gLabel.setAttribute('stroke-width', fs * 0.15);
     var mode = st.labelMode + '|' + (st.labelSource || 'region');
     for (var id in labels) {
       var txt = labelText(S.regions[id]);
@@ -180,14 +249,7 @@
     sizeCities(k);
   }
 
-  function sizeCities(k) {
-    var r = Math.max(0.5, 1.5 / Math.pow(k, 0.6));
-    var w = Math.max(0.15, 0.5 / Math.pow(k, 0.6));
-    Array.prototype.forEach.call(gCity.children, function (c) {
-      c.setAttribute('r', r);
-      c.setAttribute('stroke-width', w);
-    });
-  }
+  function sizeCities(k) { styleCities(); }
 
   /**
    * Greedy label placement: biggest regions win, and any label whose box
@@ -309,6 +371,9 @@
     }
     if (S.level === 'region' && r.baseId && S.byBase[r.baseId]) {
       return S.byBase[r.baseId].slice();
+    }
+    if (S.level === 'subregion' && r.subId && S.bySub[r.subId]) {
+      return S.bySub[r.subId].slice();
     }
     return [id];
   }
@@ -438,7 +503,7 @@
   }
 
   TM.view = {
-    build: build, clearHover: clearHover, applyTheme: applyTheme, repaint: repaint, paintFrom: paintFrom,
+    build: build, clearHover: clearHover, styleCities: styleCities, applyTheme: applyTheme, repaint: repaint, paintFrom: paintFrom,
     resetView: resetView, zoomBy: zoomBy, zoomToRegion: zoomToRegion,
     updateLabels: updateLabels,
     getView: function () { return { x: view.x, y: view.y, w: view.w, h: view.h }; },

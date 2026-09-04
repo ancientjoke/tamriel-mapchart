@@ -49,12 +49,14 @@ SEED_AREA = 150           # px: an interior blob this big counts as a region
 MIN_ISLAND = 45           # px: standalone islands may be smaller than that
 TARGET_AREA = 2500        # px: aim for subdivisions around this size
 MAX_SPLIT = 5
-SPLIT_WOBBLE = 0.17       # how far the added split lines wander
-SEA_LINK = 20             # px: islands this close count as neighbours
+SPLIT_WOBBLE = 0.16       # how far a cut wanders, as a fraction of its length
+SUB_AREA = 2600           # px: target size of a subregion
+SUBSUB_AREA = 1150        # px: target size of a sub-subregion
+SEA_LINK = 9              # px: parcels this close across water count as neighbours
 CHAIKIN = 2
 SIMPLIFY = 0.6
 OUTLINE_SIMPLIFY = 1.1    # stroke-only layers can be much coarser
-GROW = 0.30               # px: overlap that closes hairline seams between neighbours
+GROW = 0.18               # px: overlap that closes hairline seams between neighbours
 
 UI_RECTS = [(0, 0, 1207, 2), (0, 706, 1207, 709), (0, 238, 28, 342),
             (1048, 443, 1157, 480)]
@@ -118,6 +120,14 @@ CITIES = [
 
 PROVINCE_ORDER = ["High Rock", "Hammerfell", "Skyrim", "Cyrodiil", "Morrowind",
                   "Black Marsh", "Elsweyr", "Valenwood", "Summerset Isles"]
+
+# the seat of each province, drawn larger than the other cities
+CAPITALS = {
+    "High Rock": "Wayrest", "Hammerfell": "Sentinel", "Skyrim": "Solitude",
+    "Cyrodiil": "Imperial City", "Morrowind": "Mournhold",
+    "Black Marsh": "Helstrom", "Elsweyr": "Torval", "Valenwood": "Elden Root",
+    "Summerset Isles": "Alinor",
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -303,6 +313,7 @@ def name_regions(lab):
         owner[rid] = cname
         name[rid] = cname
         prov[rid] = cprov
+        CITY_AT[rid] = [float(cx), float(cy) + 9.0]
     # A few labels sit close enough together that the probe picks the wrong
     # region.  Hand whatever cities are left to the nearest region still
     # without a name, so the map keeps meaningful names throughout.
@@ -322,6 +333,7 @@ def name_regions(lab):
             continue
         name[rid] = cname
         prov[rid] = cprov
+        CITY_AT[rid] = [float(cx), float(cy) + 9.0]
         took_c.add(cname); took_r.add(rid)
     if unmatched:
         print("re-homed     : %d label(s) the probe put in a neighbour's region"
@@ -370,81 +382,111 @@ def region_adjacency(lab):
 # --------------------------------------------------------------------------- #
 # 6. depth: split the big regions without touching traced borders
 # --------------------------------------------------------------------------- #
-def noise_field(shape, rng, cells=26):
-    """A smooth random field, used to make the added sub-borders wander."""
-    small = rng.normal(0, 1, (max(2, shape[0] // cells + 2),
-                              max(2, shape[1] // cells + 2)))
-    z = ndimage.zoom(small, (shape[0] / small.shape[0], shape[1] / small.shape[1]),
-                     order=3)
-    z = z[:shape[0], :shape[1]]
-    if z.shape != shape:                       # zoom can be a pixel short
-        pad = np.zeros(shape)
-        pad[:z.shape[0], :z.shape[1]] = z
-        z = pad
-    sd = z.std() or 1.0
-    return z / sd
+def wander(n, rng, amp, harmonics=2):
+    """A smooth 1-D displacement: a gentle S-curve, not a wiggle."""
+    t = np.linspace(0.0, 1.0, max(2, n))
+    out = np.zeros_like(t)
+    for h in range(harmonics):
+        f = (h + 1) * rng.uniform(0.35, 0.9)
+        out += rng.uniform(0.5, 1.0) / (h + 1) * np.sin(2 * np.pi * f * t +
+                                                        rng.uniform(0, 2 * np.pi))
+    sd = out.std() or 1.0
+    return out / sd * amp
 
 
-def subdivide(lab):
-    """Split the big regions with k-means over their own pixels.
+def bisect(ys, xs, rng):
+    """Cut a blob in two with a wandering line across its short axis.
 
-    Straight-line cluster boundaries would look computed, so each cluster's
-    distance is modulated by its own smooth noise field: the split lines then
-    wander the way the traced borders do.  Nothing here moves a border that
-    came from the reference -- splits only ever add lines inside one region.
+    k-means leaves interior clusters, which come out as discs -- very obvious
+    on the big southern regions.  Cutting instead always produces two parcels
+    that each reach the blob's edge, so subdivisions look carved rather than
+    stamped out.
     """
-    ids, counts = np.unique(lab[lab > 0], return_counts=True)
-    area = dict(zip(ids.tolist(), counts.tolist()))
-    nxt = int(ids.max()) + 1
-    parent, splits = {}, 0
-    for rid in ids.tolist():
-        parent[rid] = rid
-        k = int(round(area[rid] / float(TARGET_AREA)))
-        if k < 2 or area[rid] < TARGET_AREA * 1.6:
-            continue
-        k = min(k, MAX_SPLIT)
-        ys, xs = np.nonzero(lab == rid)
-        pts = np.stack([xs, ys], 1).astype(float)
-        try:
-            cent, code = kmeans2(pts, k, minit="++", seed=int(rid) * 7 + 3, iter=40)
-        except Exception:
-            continue
-        if len(np.unique(code)) < 2:
-            continue
-        rng = np.random.default_rng(int(rid) * 131 + 17)
-        y0, y1 = ys.min(), ys.max() + 1
-        x0, x1 = xs.min(), xs.max() + 1
-        span = max(y1 - y0, x1 - x0)
-        fields = [noise_field((y1 - y0, x1 - x0), rng, cells=max(6, span // 6))
-                  for _ in range(k)]
-        d = np.empty((k, len(xs)))
-        ry, rx = ys - y0, xs - x0
-        for c in range(k):
-            dd = np.hypot(xs - cent[c][0], ys - cent[c][1])
-            d[c] = dd * (1.0 + SPLIT_WOBBLE * fields[c][ry, rx])
-        code = np.argmin(d, axis=0)
-        for c in range(1, k):
-            sel = code == c
-            if sel.sum() < MIN_REGION:
-                continue
-            lab[ys[sel], xs[sel]] = nxt
-            parent[nxt] = rid
-            nxt += 1
-        splits += 1
-    # a wandering border can pinch off a pocket; keep each label's largest piece
+    pts = np.stack([xs, ys], 1).astype(float)
+    c = pts.mean(0)
+    q = pts - c
+    # principal axis: cut across it, so parcels come out long, not round
+    cov = np.cov(q.T)
+    w, v = np.linalg.eigh(cov)
+    u = v[:, int(np.argmax(w))]              # long axis
+    perp = np.array([-u[1], u[0]])
+    t = q @ u
+    sacross = q @ perp
+    lo, hi = sacross.min(), sacross.max()
+    span = max(1e-6, hi - lo)
+    tspan = max(1e-6, t.max() - t.min())
+
+    # the wander is scaled to the cut's own length, so it bends the line
+    # without swinging it far enough to carve out a crescent
+    prof = wander(256, rng, amp=SPLIT_WOBBLE * min(span, tspan))
+    idx = np.clip(((sacross - lo) / span * 255).astype(int), 0, 255)
+    mid = np.median(t)
+    side = t > (mid + prof[idx])
+    frac = side.mean()
+    if frac < 0.3 or frac > 0.7:
+        side = t > mid                       # keep the two parcels comparable
+    return side
+
+
+def split_blob(mask, k, seed):
+    """Label a blob into k parcels by repeatedly bisecting the largest one."""
+    rng = np.random.default_rng(seed)
+    ys, xs = np.nonzero(mask)
+    lab = np.zeros(len(ys), int)
+    for nxt in range(1, k):
+        sizes = np.bincount(lab, minlength=nxt)
+        target = int(np.argmax(sizes))
+        sel = np.nonzero(lab == target)[0]
+        if len(sel) < 2 * MIN_REGION:
+            break
+        side = bisect(ys[sel], xs[sel], rng)
+        if side.sum() < MIN_REGION or (~side).sum() < MIN_REGION:
+            break
+        lab[sel[side]] = nxt
+    return ys, xs, lab
+
+
+def tidy_parcels(lab, land):
+    """Keep each parcel's largest piece; hand strays to the nearest neighbour."""
     for rid in np.unique(lab[lab > 0]).tolist():
         m = lab == rid
         cc, ncc = ndimage.label(m)
         if ncc > 1:
             sz = ndimage.sum(m, cc, range(1, ncc + 1))
             lab[m & (cc != int(np.argmax(sz)) + 1)] = 0
-    holes = (lab == 0) & LAND_REF
+    holes = (lab == 0) & land
     if holes.any():
         _, idx = ndimage.distance_transform_edt(lab == 0, return_indices=True)
         filled = lab[tuple(idx)]
         lab[holes] = filled[holes]
-    print("subdivision  : %d regions split -> %d total"
-          % (splits, len(np.unique(lab[lab > 0]))))
+    return lab
+
+
+def subdivide(lab, target_area, max_split, land, tag):
+    """Split every region bigger than target_area, returning child -> parent."""
+    ids, counts = np.unique(lab[lab > 0], return_counts=True)
+    area = dict(zip(ids.tolist(), counts.tolist()))
+    nxt = int(ids.max()) + 1
+    parent, splits = {}, 0
+    for rid in ids.tolist():
+        parent[rid] = rid
+        k = int(round(area[rid] / float(target_area)))
+        if k < 2 or area[rid] < target_area * 1.5:
+            continue
+        k = min(k, max_split)
+        ys, xs, sub = split_blob(lab == rid, k, int(rid) * 7919 + 13)
+        if sub.max() < 1:
+            continue
+        for c in range(1, int(sub.max()) + 1):
+            sel = sub == c
+            if sel.sum() < MIN_REGION:
+                continue
+            lab[ys[sel], xs[sel]] = nxt
+            parent[nxt] = rid
+            nxt += 1
+        splits += 1
+    lab = tidy_parcels(lab, land)
+    print("%-13s: %d split -> %d parcels" % (tag, splits, len(np.unique(lab[lab > 0]))))
     return lab, parent
 
 
@@ -630,15 +672,26 @@ def main():
     base_name, base_prov = dict(name), dict(prov)
     base_cent = {i: ndimage.center_of_mass(lab == i)
                  for i in np.unique(lab[lab > 0]).tolist()}
-    lab, parent = subdivide(lab)
+
+    # two rounds of cutting: map region -> subregion -> sub-subregion
+    lab, p2 = subdivide(lab, SUB_AREA, 5, land, "subregions")
+    sub_of_lab = lab.copy()
+    lab, p3 = subdivide(lab, SUBSUB_AREA, 4, land, "sub-subregions")
+    # child -> subregion, and child -> map region
+    sub_parent = {c: p3.get(c, c) for c in np.unique(lab[lab > 0]).tolist()}
+    parent = {c: p2.get(sub_parent[c], sub_parent[c]) for c in sub_parent}
     adj = region_adjacency(lab)
 
     ids = np.unique(lab[lab > 0]).tolist()
-    # names: a split region keeps its parent's name, numbered
+    # names: a parcel keeps its map region's name, numbered by subregion and
+    # then lettered within it
     sibling = {}
     for rid in ids:
         p = parent.get(rid, rid)
         sibling.setdefault(p, []).append(rid)
+    sub_sibling = {}
+    for rid in ids:
+        sub_sibling.setdefault(sub_parent[rid], []).append(rid)
     final_name, final_prov = {}, {}
     # anything with no city at all is named for where it sits in its province
     prov_pts = {}
@@ -665,8 +718,14 @@ def main():
         base = base_name.get(p) or ("%s %d" % (base_prov.get(p, "Region"), p))
         pv = base_prov.get(p, "Cyrodiil")
         kids.sort()
-        for i, k in enumerate(kids):
-            final_name[k] = base if len(kids) == 1 else "%s %s" % (base, ROMAN[i])
+        subs = sorted(set(sub_parent[k] for k in kids))
+        for k in kids:
+            si = subs.index(sub_parent[k])
+            sibs = sorted(sub_sibling[sub_parent[k]])
+            nm = base if len(subs) == 1 else "%s %s" % (base, ROMAN[si])
+            if len(sibs) > 1:
+                nm = "%s%s" % (nm, " ABCDEFGH"[sibs.index(k) + 1])
+            final_name[k] = nm
             final_prov[k] = pv
 
     print("vectorising  : %d regions" % len(ids))
@@ -698,6 +757,9 @@ def main():
             a, b = keys[i], keys[j]
             if b in adj.get(a, ()):
                 continue
+            # parcels of one map region are already linked through their siblings
+            if parent.get(a, a) == parent.get(b, b):
+                continue
             ba, bb = bnds[a], bnds[b]
             if (ba[0] - bb[2] > SEA_LINK or bb[0] - ba[2] > SEA_LINK or
                     ba[1] - bb[3] > SEA_LINK or bb[1] - ba[3] > SEA_LINK):
@@ -725,8 +787,8 @@ def main():
     base_groups = {}
     for rid in geoms:
         base_groups.setdefault(parent.get(rid, rid), []).append(rid)
-    base_regions = []
     base_id_of = {}
+    city_at = {b: [round(v[0], 1), round(v[1], 1)] for b, v in CITY_AT.items()}
     for bid in sorted(base_groups):
         nm = base_name.get(bid) or ("%s %d" % (base_prov.get(bid, "Region"), bid))
         cand = "%s_%s" % (slug(base_prov.get(bid, "region")), slug(nm))
@@ -735,18 +797,64 @@ def main():
             n += 1
             uniq = "%s-%d" % (cand, n)
         base_id_of[bid] = uniq
+    sub_groups = {}
+    for rid in geoms:
+        sub_groups.setdefault(sub_parent[rid], []).append(rid)
+    sub_id_of, sub_regions = {}, []
+    for sid in sorted(sub_groups):
+        kids = sub_groups[sid]
+        nm = final_name[kids[0]]
+        if len(kids) > 1:
+            nm = nm[:-1].strip()
+        cand = "%s_%s" % (slug(final_prov[kids[0]]), slug(nm))
+        n, uniq = 1, cand
+        while uniq in sub_id_of.values():
+            n += 1
+            uniq = "%s-%d" % (cand, n)
+        sub_id_of[sid] = uniq
+    for sid in sorted(sub_groups):
+        kids = sub_groups[sid]
+        u = unary_union([geoms[k] for k in kids]).buffer(0.7).buffer(-0.7)
+        u = u.simplify(OUTLINE_SIMPLIFY)
+        nm = final_name[kids[0]]
+        if len(kids) > 1:
+            nm = nm[:-1].strip()
+        sub_regions.append(dict(
+            id=sub_id_of[sid], name=nm, province=final_prov[kids[0]],
+            baseId=None, d=geom_path(u),
+            regions=sorted(id_of[k] for k in kids if k in id_of)))
+    for srec in sub_regions:
+        first = srec["regions"][0] if srec["regions"] else None
+        if first:
+            for rid2 in geoms:
+                if id_of.get(rid2) == first:
+                    srec["baseId"] = base_id_of[parent.get(rid2, rid2)]
+                    break
+    print("subregion    : %d outlines" % len(sub_regions))
+
+    base_regions = []
     for bid, kids in sorted(base_groups.items()):
         u = unary_union([geoms[k] for k in kids]).buffer(0.7).buffer(-0.7)
         u = u.simplify(OUTLINE_SIMPLIFY)
         lx, ly = pole(u, step=6.0)
-        base_regions.append(dict(
-            id=base_id_of[bid],
-            name=base_name.get(bid) or ("%s %d" % (base_prov.get(bid, "Region"), bid)),
-            province=base_prov.get(bid, "Cyrodiil"),
-            d=geom_path(u),
-            label=[round(lx, 1), round(ly, 1)],
-            area=round(u.area, 1),
-            regions=sorted(id_of[k] for k in kids if k in id_of)))
+        nm = base_name.get(bid) or ("%s %d" % (base_prov.get(bid, "Region"), bid))
+        pv = base_prov.get(bid, "Cyrodiil")
+        rec = dict(
+            id=base_id_of[bid], name=nm, province=pv, d=geom_path(u),
+            label=[round(lx, 1), round(ly, 1)], area=round(u.area, 1),
+            regions=sorted(id_of[k] for k in kids if k in id_of))
+        if bid in city_at:
+            rec["city"] = nm
+            rec["cityAt"] = city_at[bid]
+            rec["capital"] = (CAPITALS.get(pv) == nm)
+        base_regions.append(rec)
+
+    # every province gets a seat: if its named capital did not survive the
+    # label matching, promote its largest city
+    for pv in PROVINCE_ORDER:
+        mine = [r for r in base_regions if r["province"] == pv and r.get("city")]
+        if mine and not any(r.get("capital") for r in mine):
+            max(mine, key=lambda r: r["area"])["capital"] = True
     print("base regions : %d outlines from the reference" % len(base_regions))
 
 
@@ -757,6 +865,7 @@ def main():
         e = dict(id=id_of[rid], name=final_name[rid], province=final_prov[rid],
                  base=base_name.get(base_of) or final_name[rid],
                  baseId=base_id_of[base_of],
+                 subId=sub_id_of[sub_parent[rid]],
                  d=geom_path(g), label=[round(lx, 1), round(ly, 1)],
                  area=round(g.area, 1),
                  nb=sorted(id_of[q] for q in
@@ -764,9 +873,6 @@ def main():
                            if q in id_of))
         if sea_links.get(rid):
             e["nbSea"] = sorted(id_of[q] for q in sea_links[rid] if q in id_of)
-        if base_name.get(parent.get(rid, rid)) and final_name[rid] == base_name.get(parent.get(rid, rid)):
-            e["city"] = base_name[parent[rid]]
-            e["cityAt"] = [round(lx, 1), round(ly, 1)]
         out_regions.append(e)
 
     provinces = []
@@ -790,7 +896,8 @@ def main():
                 round(b[2] - b[0] + 20, 1), round(b[3] - b[1] + 20, 1)],
         land=[geom_path(land_draw)],
         scenery=[], lakes=[], rivers=[],
-        provinces=provinces, baseRegions=base_regions, regions=out_regions,
+        provinces=provinces, baseRegions=base_regions,
+        subRegions=sub_regions, regions=out_regions,
     )
     out = os.path.join(ROOT, "data", "tamriel-map.js")
     with open(out, "w") as f:
@@ -813,6 +920,7 @@ def main():
 
 
 ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"]
+CITY_AT = {}
 LAND_REF = None
 
 if __name__ == "__main__":

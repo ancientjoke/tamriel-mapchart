@@ -42,7 +42,7 @@
     bind();
     renderAll();
     setTab('paint');
-    setMode('paint'); setLevel(S.doc.style.showBorders ? 'subregion' : 'region');
+    setMode('paint'); setLevel(S.level || 'region');
     setActiveColor(TM.PALETTES.Banners[0], true);
     bindLegendDrag();
 
@@ -72,7 +72,7 @@
   function fillStatics() {
     var th = $('s-theme');
     Object.keys(TM.THEMES).forEach(function (k) {
-      th.appendChild(opt(k, TM.THEMES[k].label));
+      th.appendChild(opt(k, TM.THEMES[k].title || k));
     });
     var sc = $('tl-scenario');
     TL.scenarios.forEach(function (s) { sc.appendChild(opt(s.id, s.name)); });
@@ -569,14 +569,19 @@
   function renderStatus() {
     var bits = [];
     var painted = Object.keys(S.doc.colors).length;
-    if (S.level === 'region') {
-      var bn = 0;
-      for (var b in S.byBase) {
-        if (S.byBase[b].some(function (x) { return S.doc.colors[x]; })) bn++;
+    function countGroups(idx) {
+      var n = 0;
+      for (var k in idx) {
+        if (idx[k].some(function (x) { return S.doc.colors[x]; })) n++;
       }
-      bits.push(bn + '/' + (S.map.baseRegions || []).length + ' regions painted');
+      return n;
+    }
+    if (S.level === 'region') {
+      bits.push(countGroups(S.byBase) + '/' + (S.map.baseRegions || []).length + ' regions painted');
+    } else if (S.level === 'subregion') {
+      bits.push(countGroups(S.bySub) + '/' + (S.map.subRegions || []).length + ' subregions painted');
     } else {
-      bits.push(painted + '/' + S.map.regions.length + ' subregions painted');
+      bits.push(painted + '/' + S.map.regions.length + ' parcels painted');
     }
     if (selCount()) bits.push(selCount() + ' selected');
     if (S.hover) bits.push(S.regions[S.hover].name + ' · ' + S.regions[S.hover].province);
@@ -596,12 +601,19 @@
     $('s-labelsource').value = st.labelSource || 'region';
     $('s-labelsize').value = st.labelSize; $('s-labelsize-v').textContent = st.labelSize;
     $('s-borders').checked = st.showBorders;
+    $('s-subborders').checked = !!st.showSubBorders;
+    $('s-sbw').value = st.subBorderWidth != null ? st.subBorderWidth : 0.6;
+    $('s-sbw-v').textContent = $('s-sbw').value;
+    $('s-capitals').checked = !!st.showCapitals;
+    $('s-towns').checked = !!st.showTowns;
+    $('s-citynames').checked = !!st.showCityNames;
+    $('s-cs').value = st.cityScale != null ? st.cityScale : 1;
+    $('s-cs-v').textContent = '×' + $('s-cs').value;
     $('s-baseborders').checked = st.showBaseBorders !== false;
     $('s-bbw').value = st.baseBorderWidth != null ? st.baseBorderWidth : 0.9;
     $('s-bbw-v').textContent = $('s-bbw').value;
     $('s-provborders').checked = st.showProvBorders;
     $('s-coast').checked = st.showCoast;
-    $('s-cities').checked = st.showCities;
     $('s-rivers').checked = st.showRivers;
     $('s-lakes').checked = st.showLakes;
     $('s-bw').value = st.borderWidth; $('s-bw-v').textContent = st.borderWidth;
@@ -642,19 +654,19 @@
     svg.classList.toggle('picking', m === 'pick');
     svg.style.cursor = m === 'select' ? 'pointer' : (m === 'pick' ? 'copy' : 'crosshair');
   }
-  var LEVELS = ['province', 'region', 'subregion'];
+  var LEVELS = ['province', 'region', 'subregion', 'parcel'];
   function setLevel(l, quiet) {
     if (LEVELS.indexOf(l) < 0) l = 'region';
     S.level = l;
     LEVELS.forEach(function (k) { $('lv-' + k).classList.toggle('on', k === l); });
-    // the original map has no subdivision lines, so only show them when the
-    // user is actually working at that level
-    var want = (l === 'subregion');
-    if (S.doc.style.showBorders !== want) {
-      S.doc.style.showBorders = want;
-      $('s-borders').checked = want;
-      V.applyTheme();
-    }
+    // the original map has no subdivision lines, so each level shows only the
+    // borders you are actually working with
+    var st = S.doc.style;
+    st.showSubBorders = (l === 'subregion' || l === 'parcel');
+    st.showBorders = (l === 'parcel');
+    $('s-borders').checked = st.showBorders;
+    $('s-subborders').checked = st.showSubBorders;
+    V.applyTheme();
     if (V.clearHover) V.clearHover();
     if (!quiet) renderStatus();
   }
@@ -743,12 +755,23 @@
       $('s-labelsize-v').textContent = S.doc.style.labelSize;
       V.updateLabels(true); S.dirty = true;
     };
-    [['s-borders', 'showBorders'], ['s-baseborders', 'showBaseBorders'],
-     ['s-provborders', 'showProvBorders'],
-     ['s-coast', 'showCoast'], ['s-cities', 'showCities'],
+    [['s-borders', 'showBorders'], ['s-subborders', 'showSubBorders'],
+     ['s-baseborders', 'showBaseBorders'], ['s-provborders', 'showProvBorders'],
+     ['s-coast', 'showCoast'],
+     ['s-capitals', 'showCapitals'], ['s-towns', 'showTowns'],
+     ['s-citynames', 'showCityNames'],
      ['s-rivers', 'showRivers'], ['s-lakes', 'showLakes']].forEach(function (p) {
       $(p[0]).onchange = function () { S.doc.style[p[1]] = $(p[0]).checked; styleChanged(); };
     });
+    $('s-sbw').oninput = function () {
+      S.doc.style.subBorderWidth = parseFloat($('s-sbw').value);
+      $('s-sbw-v').textContent = S.doc.style.subBorderWidth; styleChanged();
+    };
+    $('s-cs').oninput = function () {
+      S.doc.style.cityScale = parseFloat($('s-cs').value);
+      $('s-cs-v').textContent = '×' + S.doc.style.cityScale;
+      V.styleCities(); S.dirty = true;
+    };
     $('s-bbw').oninput = function () {
       S.doc.style.baseBorderWidth = parseFloat($('s-bbw').value);
       $('s-bbw-v').textContent = S.doc.style.baseBorderWidth; styleChanged();
@@ -870,6 +893,14 @@
       toast('Cleared');
     };
 
+    $('side-toggle').onclick = function () {
+      var app = D.getElementById('app');
+      var on = app.classList.toggle('collapsed');
+      $('side-toggle').innerHTML = on ? '&#9656;' : '&#9666;';
+      $('side-toggle').title = on ? 'Show the panel (Tab)' : 'Hide the panel (Tab)';
+      setTimeout(function () { TM.emit('view'); V.resetView(); }, 200);
+    };
+
     /* zoom controls */
     $('z-in').onclick = function () { V.zoomBy(1 / 1.35); };
     $('z-out').onclick = function () { V.zoomBy(1.35); };
@@ -945,6 +976,7 @@
       case 'p':
         setLevel(LEVELS[(LEVELS.indexOf(S.level) + 1) % LEVELS.length]);
         break;
+      case 'tab': e.preventDefault(); $('side-toggle').onclick(); break;
       case 'k': TL.add(); toast('Captured frame ' + TL.frames().length); break;
       case ' ': e.preventDefault(); togglePlay(); break;
       case '0': V.resetView(); break;

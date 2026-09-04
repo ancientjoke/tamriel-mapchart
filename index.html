@@ -22,7 +22,8 @@
     <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim)">Fill</span>
     <button class="btn sm" id="lv-province"  title="A click fills a whole province">Province</button>
     <button class="btn sm" id="lv-region"    title="A click fills one region of the original map">Region</button>
-    <button class="btn sm" id="lv-subregion" title="A click fills a single subdivision">Subregion</button>
+    <button class="btn sm" id="lv-subregion" title="A click fills a subregion">Subregion</button>
+    <button class="btn sm" id="lv-parcel"    title="A click fills a single sub-subregion">Sub-sub</button>
     <div class="tb-sep"></div>
     <button class="btn ico" id="b-undo" title="Undo (Ctrl+Z)">&#8630;</button>
     <button class="btn ico" id="b-redo" title="Redo (Ctrl+Shift+Z)">&#8631;</button>
@@ -34,6 +35,7 @@
   </header>
 
   <!-- ==================== sidebar ==================== -->
+  <button id="side-toggle" title="Hide the panel (Tab)">&#9666;</button>
   <aside id="side">
     <nav id="tabs">
       <button data-p="paint">Paint</button>
@@ -47,7 +49,9 @@
 
       <!-- ---------- paint ---------- -->
       <section class="panel" data-p="paint">
-        <h4>Active colour</h4>
+        <h4>Choose a colour</h4>
+        <div id="swatches"></div>
+        <div class="palset" id="palset"></div>
         <div id="curcolor">
           <div id="curchip"></div>
           <div class="grow">
@@ -56,12 +60,10 @@
               <input type="text" id="pk-hex" class="grow" value="#8c2f2a" spellcheck="false">
             </div>
             <div class="row" style="margin-top:6px">
-              <input type="text" id="pk-label" class="grow" placeholder="Legend label for this colour">
+              <input type="text" id="pk-label" class="grow" placeholder="Name this colour in the legend">
             </div>
           </div>
         </div>
-        <div class="palset" id="palset"></div>
-        <div id="swatches"></div>
         <p class="hint">Click to fill whatever the <b>Fill</b> switch is set to — a whole
           province, one of the original map's 89 regions, or a single subdivision. Drag to
           paint several. <kbd>Shift</kbd>+click always takes the whole province,
@@ -126,15 +128,22 @@
           <input type="range" id="s-labelsize" min="2.5" max="12" step="0.2"></div>
 
         <h4>Layers</h4>
-        <label class="ck"><input type="checkbox" id="s-borders"> Subregion borders</label>
+        <label class="ck"><input type="checkbox" id="s-borders"> Sub-subregion borders</label>
+        <label class="ck"><input type="checkbox" id="s-subborders"> Subregion borders</label>
         <label class="ck"><input type="checkbox" id="s-baseborders"> Map region borders</label>
         <label class="ck"><input type="checkbox" id="s-provborders"> Province borders</label>
         <label class="ck"><input type="checkbox" id="s-coast"> Coastline</label>
-        <label class="ck"><input type="checkbox" id="s-cities"> City markers</label>
+        <label class="ck"><input type="checkbox" id="s-capitals"> Capital cities</label>
+        <label class="ck"><input type="checkbox" id="s-towns"> Other cities</label>
+        <label class="ck"><input type="checkbox" id="s-citynames"> City names</label>
         <label class="ck" id="row-rivers"><input type="checkbox" id="s-rivers"> Rivers</label>
         <label class="ck" id="row-lakes"><input type="checkbox" id="s-lakes"> Lakes &amp; inland seas</label>
-        <div class="fld" style="margin-top:10px"><span>Subregion border <i id="s-bw-v" style="font-style:normal;color:var(--gold)"></i></span>
+        <div class="fld"><span>City marker size <i id="s-cs-v" style="font-style:normal;color:var(--gold)"></i></span>
+          <input type="range" id="s-cs" min="0.5" max="3" step="0.1"></div>
+        <div class="fld" style="margin-top:10px"><span>Sub-subregion border <i id="s-bw-v" style="font-style:normal;color:var(--gold)"></i></span>
           <input type="range" id="s-bw" min="0" max="2" step="0.05"></div>
+        <div class="fld"><span>Subregion border <i id="s-sbw-v" style="font-style:normal;color:var(--gold)"></i></span>
+          <input type="range" id="s-sbw" min="0" max="2" step="0.05"></div>
         <div class="fld"><span>Map region border <i id="s-bbw-v" style="font-style:normal;color:var(--gold)"></i></span>
           <input type="range" id="s-bbw" min="0" max="3" step="0.05"></div>
         <div class="fld"><span>Province border <i id="s-pbw-v" style="font-style:normal;color:var(--gold)"></i></span>
@@ -281,7 +290,7 @@
         <h4>Keyboard</h4>
         <p class="hint">
           <kbd>B</kbd> paint · <kbd>V</kbd> select · <kbd>I</kbd> pick colour ·
-          <kbd>P</kbd> cycle fill level · <kbd>Space</kbd> play/pause ·
+          <kbd>P</kbd> cycle fill level · <kbd>Tab</kbd> hide panel · <kbd>Space</kbd> play/pause ·
           <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo ·
           <kbd>0</kbd> fit · <kbd>+</kbd>/<kbd>-</kbd> zoom · <kbd>K</kbd> capture frame ·
           <kbd>1</kbd>…<kbd>9</kbd> pick palette colour

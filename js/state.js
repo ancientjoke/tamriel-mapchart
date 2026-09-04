@@ -29,32 +29,32 @@
   var THEMES = {
     mapchart: {
       // sampled straight off the reference map
-      label: 'MapChart', sea: '#b2bac3', land: '#dddddd', unpainted: '#dddddd',
-      border: '#a9a9a9', baseBorder: '#6f6f6f', provBorder: '#1e1e1e',
+      title: 'MapChart', sea: '#b2bac3', land: '#dddddd', unpainted: '#dddddd',
+      border: '#a9a9a9', baseBorder: '#6f6f6f', subBorder: '#7e8f9e', provBorder: '#1e1e1e',
       coast: '#1e1e1e',
       water: '#b2bac3', river: '#b2bac3', label: '#141414', labelHalo: '#ffffff',
       city: '#2b2b2b', cityFill: '#ffffff', stageBg: '#b2bac3', dark: false
     },
     parchment: {
-      label: 'Parchment', baseBorder: '#9c8557', sea: '#c2b189', land: '#efe3c4', unpainted: '#efe3c4',
+      title: 'Parchment', baseBorder: '#9c8557', subBorder: '#b39a63', sea: '#c2b189', land: '#efe3c4', unpainted: '#efe3c4',
       border: '#8c7a52', provBorder: '#4a3b21', coast: '#5c4a2a',
       water: '#a8bcc0', river: '#9fb5bb', label: '#3a2c14', labelHalo: '#f6ecd4',
       city: '#3a2c14', cityFill: '#fdf6e2', stageBg: '#a08f6b', dark: false
     },
     slate: {
-      label: 'Slate', baseBorder: '#7e8f9e', sea: '#1b232b', land: '#2f3a44', unpainted: '#2f3a44',
+      title: 'Slate', baseBorder: '#7e8f9e', subBorder: '#5d6d7c', sea: '#1b232b', land: '#2f3a44', unpainted: '#2f3a44',
       border: '#5a6a78', provBorder: '#0d1218', coast: '#0d1218',
       water: '#233240', river: '#2c3b48', label: '#e6edf3', labelHalo: '#0d1218',
       city: '#e6edf3', cityFill: '#0d1218', stageBg: '#141a21', dark: true
     },
     ashland: {
-      label: 'Ashland', baseBorder: '#a2907f', sea: '#3a2f2c', land: '#5a4f47', unpainted: '#5a4f47',
+      title: 'Ashland', baseBorder: '#a2907f', subBorder: '#7e6f60', sea: '#3a2f2c', land: '#5a4f47', unpainted: '#5a4f47',
       border: '#8a7a6c', provBorder: '#1c1512', coast: '#1c1512',
       water: '#4a3f3c', river: '#57484a', label: '#f2e6d8', labelHalo: '#241b17',
       city: '#f2e6d8', cityFill: '#241b17', stageBg: '#2a221f', dark: true
     },
     ink: {
-      label: 'Ink', baseBorder: '#6f6a62', sea: '#f2f0ea', land: '#ffffff', unpainted: '#ffffff',
+      title: 'Ink', baseBorder: '#6f6a62', subBorder: '#8d887f', sea: '#f2f0ea', land: '#ffffff', unpainted: '#ffffff',
       border: '#9a958c', provBorder: '#141414', coast: '#141414',
       water: '#dfe6ea', river: '#c9d4da', label: '#141414', labelHalo: '#ffffff',
       city: '#141414', cityFill: '#ffffff', stageBg: '#e6e3db', dark: false
@@ -67,10 +67,13 @@
       theme: 'mapchart',
       // the reference map has no names on it, so neither does this by default
       showLabels: false, labelSize: 5.6, labelMode: 'none',
-      showCities: false, showRivers: true, showLakes: true,
-      showBorders: false, showBaseBorders: true, showProvBorders: true,
-      showCoast: true,
-      borderWidth: 0.45, baseBorderWidth: 0.9, provBorderWidth: 1.7,
+      showRivers: true, showLakes: true,
+      showBorders: false, showSubBorders: false,
+      showBaseBorders: true, showProvBorders: true, showCoast: true,
+      borderWidth: 0.35, subBorderWidth: 0.6,
+      baseBorderWidth: 0.95, provBorderWidth: 1.7,
+      showCapitals: false, showTowns: false, showCityNames: false,
+      cityScale: 1,
       title: 'Tamriel', subtitle: '',
       legendTitle: 'Legend', showLegend: true,
       legendAt: [0.985, 0.02], legendAnchor: 'tr',
@@ -98,13 +101,16 @@
     regions: {},          // id -> subregion record
     byProvince: {},       // province -> [subregion ids]
     baseRegions: {},      // baseId -> the reference's own region record
-    byBase: {},           // baseId -> [subregion ids]
+    subRegions: {},       // subId  -> subregion record
+    byBase: {},           // baseId -> [parcel ids]
+    bySub: {},            // subId  -> [parcel ids]
+    basesOfSub: {},       // subId  -> baseId
     provBases: {},        // province -> [baseIds]
     activeColor: '#8c2f2a',
     activePalette: 'Banners',
     selection: {},        // id -> true
     mode: 'paint',        // paint | select | pick
-    level: 'region',      // province | region | subregion -- what a click acts on
+    level: 'region',      // province | region | subregion | parcel
     tool: 'region',       // kept for province-wide Shift+click
     playhead: 0,
     playing: false,

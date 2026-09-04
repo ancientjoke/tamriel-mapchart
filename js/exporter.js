@@ -47,6 +47,13 @@
       o.push('<path d="' + r.d + '" fill="' + (colors[r.id] || t.unpainted) + '"/>');
     });
     o.push('</g>');
+    if (st.showSubBorders && M.subRegions) {
+      o.push('<g fill="none" stroke="' + (t.subBorder || t.border) + '" stroke-width="' +
+             (st.subBorderWidth != null ? st.subBorderWidth : 0.6) +
+             '" stroke-linejoin="round">' +
+             M.subRegions.map(function (b) { return '<path d="' + b.d + '"/>'; }).join('') +
+             '</g>');
+    }
     if (st.showBaseBorders && M.baseRegions) {
       o.push('<g fill="none" stroke="' + (t.baseBorder || t.border) + '" stroke-width="' +
              (st.baseBorderWidth != null ? st.baseBorderWidth : 0.9) +
@@ -73,10 +80,24 @@
              M.land.concat(M.scenery).map(function (d) { return '<path d="' + d + '"/>'; }).join('') +
              '</g>');
     }
-    if (st.showCities) {
-      o.push('<g fill="' + t.cityFill + '" stroke="' + t.city + '" stroke-width="0.5">');
-      M.regions.forEach(function (r) {
-        if (r.city) o.push('<circle cx="' + r.cityAt[0] + '" cy="' + (r.cityAt[1] + 3.2) + '" r="1.5"/>');
+    if ((st.showCapitals || st.showTowns) && M.baseRegions) {
+      var cs = st.cityScale || 1;
+      o.push('<g text-anchor="middle" paint-order="stroke" ' +
+             'font-family="Segoe UI,Inter,system-ui,sans-serif">');
+      M.baseRegions.forEach(function (b) {
+        if (!b.city) return;
+        var cap = !!b.capital;
+        if (cap ? !st.showCapitals : !st.showTowns) return;
+        var r = (cap ? 2.6 : 1.5) * cs;
+        o.push('<circle cx="' + b.cityAt[0] + '" cy="' + b.cityAt[1] + '" r="' + r +
+               '" fill="' + (cap ? t.city : t.cityFill) + '" stroke="' + t.city +
+               '" stroke-width="' + (0.55 * cs) + '"/>');
+        if (st.showCityNames) {
+          var fs = (cap ? 6.2 : 5.0) * cs;
+          o.push('<text x="' + b.cityAt[0] + '" y="' + (b.cityAt[1] - r - fs * 0.32) +
+                 '" font-size="' + fs + '" fill="' + t.label + '" stroke="' + t.labelHalo +
+                 '" stroke-width="' + (fs * 0.09) + '">' + esc(b.city) + '</text>');
+        }
       });
       o.push('</g>');
     }
@@ -84,7 +105,7 @@
       var fs = st.labelSize;
       o.push('<g text-anchor="middle" font-family="Segoe UI,Inter,system-ui,sans-serif" ' +
              'font-size="' + fs + '" fill="' + t.label + '" stroke="' + t.labelHalo +
-             '" stroke-width="' + (fs * 0.24) + '" paint-order="stroke">');
+             '" stroke-width="' + (fs * 0.15) + '" paint-order="stroke">');
       M.regions.forEach(function (r) {
         var txt = st.labelSource === 'city' ? (r.city || r.name) : r.name;
         if (st.labelMode !== 'all') {

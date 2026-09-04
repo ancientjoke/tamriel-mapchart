@@ -13,9 +13,11 @@ toolbar:
 | **Region** | one of the reference map's own 89 regions — the default |
 | **Subregion** | one of the 199 finer subdivisions |
 
-At Province and Region level the subdivision lines are hidden, so the map looks
-exactly like the original. Switch to Subregion and they appear. The map carries no
-names, like the reference.
+Each level shows only the borders you are working with, so at Province and Region
+the map looks exactly like the original. The map carries no names, like the
+reference — though **capital cities**, **other cities** and **city names** are all
+layers you can switch on in Style, with capitals drawn larger. Zoom goes to about
+200×, and the panel folds away with <kbd>Tab</kbd> to give the map the full window.
 
 Open `index.html` in a browser, or use the self-contained single file
 `tamriel-mapchart.html` (no server, no dependencies, works from `file://`).
@@ -47,11 +49,14 @@ coastline much darker, labels darker still. `tools/trace_ref.py`:
    the region adjacency so provinces stay contiguous. Where two labels probe into
    the same region the loser is re-homed to the nearest free one; anything left
    over is named for where it sits in its province ("Skyrim North").
-6. **Adds depth** by splitting the larger regions with k-means over their own
-   pixels. Straight cluster boundaries would look computed, so each cluster's
-   distance is modulated by its own smooth noise field and the split lines wander
-   the way the traced ones do. No split ever moves a border that came from the
-   image — it only adds lines inside one region.
+6. **Adds depth in two rounds** — region → subregion → sub-subregion — by
+   repeatedly bisecting the largest parcel with a wandering cut across its short
+   axis. k-means was the obvious choice and the wrong one: it leaves interior
+   clusters, which come out as discs, very obvious on the big southern regions.
+   A cut always produces two parcels that each reach the edge, so subdivisions
+   look carved rather than stamped out. The cut bends along a smooth S-curve
+   scaled to its own length, and is rejected if it would leave the two parcels
+   badly unbalanced. No split ever moves a border that came from the image.
 7. **Drops label ink floating on water.** Text drawn over the sea is dark, so it
    does not classify as sea and would otherwise survive as letter-shaped islands —
    the word "Bravil" sitting in the Niben, for instance. Any land component that is
@@ -86,7 +91,11 @@ draws its borders in a hierarchy. The **Fill** switch sets a sensible default, a
 |---|---|
 | Province | the nine provinces, heaviest |
 | Map region | the 89 regions traced from the reference |
-| Subregion | the 199 subdivisions, lightest — hidden unless you're working at that level |
+| Subregion | 188 subdivisions |
+| Sub-subregion | 423 parcels, lightest |
+
+Border widths are in map units but thin as you zoom in, so they stay readable at
+200× instead of swallowing the map.
 
 Colour is always stored per subregion, so switching levels never loses anything:
 filling a region just fills all of its subdivisions at once.
@@ -152,7 +161,7 @@ js/timeline.js           keyframes, cross-fade playback, the built-in histories
 js/sim.js                the faction growth simulator
 js/exporter.js           standalone SVG, PNG, JSON, CSV
 js/ui.js                 panels, bindings, overlays, the event bus
-data/tamriel-map.js      generated geometry (199 subregions, 89 map regions, 9 provinces)
+data/tamriel-map.js      generated geometry (423 parcels, 188 subregions, 89 map regions, 9 provinces)
 tools/trace_ref.py       the tracer
 tools/bundle.py          single-file build
 ```
