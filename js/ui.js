@@ -42,7 +42,7 @@
     bind();
     renderAll();
     setTab('paint');
-    setMode('paint'); setTool('region');
+    setMode('paint'); setLevel(S.doc.style.showBorders ? 'subregion' : 'region');
     setActiveColor(TM.PALETTES.Banners[0], true);
     bindLegendDrag();
 
@@ -263,10 +263,11 @@
       S.map.provinces.forEach(function (p) {
         var box = D.createElement('div');
         box.className = 'prov'; box.dataset.prov = p.name;
+        var bases = S.provBases[p.name] || [];
         var hd = D.createElement('div');
         hd.className = 'hd';
         hd.innerHTML = '<span class="tw">&#9656;</span><b>' + esc(p.name) +
-                       '</b><span class="n">' + p.regions.length + '</span>';
+                       '</b><span class="n">' + bases.length + '</span>';
         hd.onclick = function (e) {
           if (e.shiftKey) {
             p.regions.forEach(function (id) { S.selection[id] = true; });
@@ -282,39 +283,79 @@
         fill.title = 'Fill this whole province with the active colour';
         fill.onclick = function (e) { e.stopPropagation(); ST.setColor(p.regions, S.activeColor); };
         hd.appendChild(fill);
+
         var kids = D.createElement('div');
         kids.className = 'kids';
-        p.regions.forEach(function (id) {
-          var r = S.regions[id];
+        bases.forEach(function (bid) {
+          var b = S.baseRegions[bid];
+          var subs = S.byBase[bid] || [];
           var row = D.createElement('div');
-          row.className = 'rg'; row.dataset.id = id;
-          row.innerHTML = '<span class="dot"></span><span>' + esc(r.name) + '</span>' +
-                          (r.city ? '<span class="cty">' + esc(r.city) + '</span>' : '');
+          row.className = 'rg base'; row.dataset.base = bid;
+          row.innerHTML = '<span class="tw">' + (subs.length > 1 ? '&#9656;' : '&nbsp;') +
+            '</span><span class="dot"></span><span>' + esc(b.name) + '</span>' +
+            (subs.length > 1 ? '<span class="cty">' + subs.length + '</span>' : '');
+          var subBox = D.createElement('div');
+          subBox.className = 'subs';
+          subs.forEach(function (id) {
+            var r = S.regions[id];
+            var sr = D.createElement('div');
+            sr.className = 'rg sub'; sr.dataset.id = id;
+            sr.innerHTML = '<span class="dot"></span><span>' + esc(r.name) + '</span>';
+            sr.onclick = function (e) {
+              e.stopPropagation();
+              if (e.shiftKey || S.mode === 'select') {
+                if (S.selection[id]) delete S.selection[id]; else S.selection[id] = true;
+                TM.emit('selection');
+              } else if (e.altKey) { ST.setColor([id], null); }
+              else { ST.setColor([id], S.activeColor); }
+            };
+            sr.ondblclick = function (e) { e.stopPropagation(); V.zoomToRegion(id); };
+            subBox.appendChild(sr);
+          });
           row.onclick = function (e) {
-            if (e.shiftKey || S.mode === 'select') {
-              if (S.selection[id]) delete S.selection[id]; else S.selection[id] = true;
-              TM.emit('selection');
-            } else if (e.altKey) {
-              ST.setColor([id], null);
-            } else {
-              ST.setColor([id], S.activeColor);
+            if (e.target.classList.contains('tw') && subs.length > 1) {
+              row.classList.toggle('open');
+              e.target.innerHTML = row.classList.contains('open') ? '&#9662;' : '&#9656;';
+              return;
             }
+            if (e.shiftKey || S.mode === 'select') {
+              var on = !S.selection[subs[0]];
+              subs.forEach(function (x) { if (on) S.selection[x] = true; else delete S.selection[x]; });
+              TM.emit('selection');
+            } else if (e.altKey) { ST.setColor(subs, null); }
+            else { ST.setColor(subs, S.activeColor); }
           };
-          row.ondblclick = function () { V.zoomToRegion(id); };
+          row.ondblclick = function () { if (subs.length) V.zoomToRegion(subs[0]); };
           kids.appendChild(row);
+          kids.appendChild(subBox);
         });
         box.appendChild(hd); box.appendChild(kids);
         host.appendChild(box);
       });
       treeBuilt = true;
     }
-    Array.prototype.forEach.call(host.querySelectorAll('.rg'), function (row) {
+    // colour dots and selection state
+    Array.prototype.forEach.call(host.querySelectorAll('.rg.sub'), function (row) {
       var id = row.dataset.id;
       row.classList.toggle('sel', !!S.selection[id]);
       var c = S.doc.colors[id];
       var dot = row.querySelector('.dot');
       dot.style.background = c || 'transparent';
       dot.style.borderStyle = c ? 'solid' : 'dashed';
+    });
+    Array.prototype.forEach.call(host.querySelectorAll('.rg.base'), function (row) {
+      var subs = S.byBase[row.dataset.base] || [];
+      var cols = {}, any = false;
+      subs.forEach(function (id) {
+        if (S.doc.colors[id]) { cols[S.doc.colors[id]] = 1; any = true; }
+      });
+      var keys = Object.keys(cols);
+      var dot = row.querySelector('.dot');
+      dot.style.background = keys.length === 1 ? keys[0] : (any ? 'linear-gradient(45deg,' +
+        keys.slice(0, 2).join(',') + ')' : 'transparent');
+      dot.style.borderStyle = any ? 'solid' : 'dashed';
+      row.classList.toggle('sel', subs.length > 0 &&
+        subs.every(function (x) { return S.selection[x]; }));
     });
   }
   function renderSel() {
@@ -359,43 +400,61 @@
     var out = $('find-out');
     q = (q || '').trim().toLowerCase();
     if (!q) { out.innerHTML = ''; return; }
-    var hits = aliasHits(q);
-    for (var id in S.regions) {
-      if (hits.indexOf(S.regions[id]) >= 0) continue;
-      var r = S.regions[id];
-      var hay = (r.name + ' ' + (r.base || '') + ' ' + r.province + ' ' +
-                 (r.city || '')).toLowerCase();
-      if (hay.indexOf(q) >= 0) hits.push(r);
-      if (hits.length > 40) break;
+
+    var aliased = aliasHits(q);
+    var seen = {}, hits = [];
+    function push(bid) {
+      if (!bid || seen[bid]) return;
+      seen[bid] = 1;
+      hits.push(S.baseRegions[bid]);
     }
-    var aliasCount = aliasHits(q).length;
+    aliased.forEach(function (r) { push(r.baseId); });
+    var aliasCount = hits.length;
+    for (var bid in S.baseRegions) {
+      var b = S.baseRegions[bid];
+      if ((b.name + ' ' + b.province).toLowerCase().indexOf(q) >= 0) push(bid);
+    }
+    for (var id in S.regions) {
+      var r = S.regions[id];
+      if ((r.name + ' ' + (r.city || '')).toLowerCase().indexOf(q) >= 0) push(r.baseId);
+    }
     var head = hits.slice(0, aliasCount), rest = hits.slice(aliasCount);
     rest.sort(function (a, b) {
       var an = a.name.toLowerCase().indexOf(q), bn = b.name.toLowerCase().indexOf(q);
       return (an < 0 ? 9 : an) - (bn < 0 ? 9 : bn) || a.name.localeCompare(b.name);
     });
     hits = head.concat(rest);
-    out.innerHTML = hits.slice(0, 14).map(function (r) {
-      return '<div class="rg" data-id="' + r.id + '"><span class="dot" style="background:' +
-        (S.doc.colors[r.id] || 'transparent') + '"></span><span>' + esc(r.name) +
-        '</span><span class="cty">' + esc(r.province) + '</span></div>';
-    }).join('') || '<p class="hint">Nothing matches “' + esc(q) + '”.</p>';
+
+    out.innerHTML = hits.slice(0, 14).map(function (b) {
+      var subs = S.byBase[b.id] || [];
+      var c = S.doc.colors[subs[0]] || 'transparent';
+      return '<div class="rg" data-base="' + b.id + '"><span class="dot" style="background:' +
+        c + '"></span><span>' + esc(b.name) + '</span><span class="cty">' +
+        esc(b.province) + (subs.length > 1 ? ' · ' + subs.length : '') + '</span></div>';
+    }).join('') || '<p class="hint">Nothing matches &ldquo;' + esc(q) + '&rdquo;.</p>';
+
     if (hits.length > 1) {
       var all = D.createElement('button');
       all.className = 'btn sm'; all.style.marginTop = '6px';
-      all.textContent = 'Select all ' + hits.length + ' matches';
+      all.textContent = 'Select all ' + hits.length + ' regions';
       all.onclick = function () {
-        hits.forEach(function (r) { S.selection[r.id] = true; });
+        var n = 0;
+        hits.forEach(function (b) {
+          (S.byBase[b.id] || []).forEach(function (id) { S.selection[id] = true; n++; });
+        });
         TM.emit('selection');
-        toast(hits.length + ' regions selected');
+        toast(n + ' subregions selected');
       };
       out.appendChild(all);
     }
     Array.prototype.forEach.call(out.querySelectorAll('.rg'), function (row) {
       row.onclick = function (e) {
-        var id = row.dataset.id;
-        if (e.altKey) { ST.setColor([id], S.activeColor); return; }
-        S.selection[id] = true; TM.emit('selection'); V.zoomToRegion(id);
+        var subs = S.byBase[row.dataset.base] || [];
+        if (!subs.length) return;
+        if (e.altKey) { ST.setColor(subs, S.activeColor); return; }
+        subs.forEach(function (id) { S.selection[id] = true; });
+        TM.emit('selection');
+        V.zoomToRegion(subs[0]);
       };
     });
   }
@@ -510,7 +569,15 @@
   function renderStatus() {
     var bits = [];
     var painted = Object.keys(S.doc.colors).length;
-    bits.push(painted + '/' + S.map.regions.length + ' painted');
+    if (S.level === 'region') {
+      var bn = 0;
+      for (var b in S.byBase) {
+        if (S.byBase[b].some(function (x) { return S.doc.colors[x]; })) bn++;
+      }
+      bits.push(bn + '/' + (S.map.baseRegions || []).length + ' regions painted');
+    } else {
+      bits.push(painted + '/' + S.map.regions.length + ' subregions painted');
+    }
     if (selCount()) bits.push(selCount() + ' selected');
     if (S.hover) bits.push(S.regions[S.hover].name + ' · ' + S.regions[S.hover].province);
     var k = V.getFit().w / V.getView().w;
@@ -575,10 +642,21 @@
     svg.classList.toggle('picking', m === 'pick');
     svg.style.cursor = m === 'select' ? 'pointer' : (m === 'pick' ? 'copy' : 'crosshair');
   }
-  function setTool(t) {
-    S.tool = t;
-    $('t-region').classList.toggle('on', t === 'region');
-    $('t-province').classList.toggle('on', t === 'province');
+  var LEVELS = ['province', 'region', 'subregion'];
+  function setLevel(l, quiet) {
+    if (LEVELS.indexOf(l) < 0) l = 'region';
+    S.level = l;
+    LEVELS.forEach(function (k) { $('lv-' + k).classList.toggle('on', k === l); });
+    // the original map has no subdivision lines, so only show them when the
+    // user is actually working at that level
+    var want = (l === 'subregion');
+    if (S.doc.style.showBorders !== want) {
+      S.doc.style.showBorders = want;
+      $('s-borders').checked = want;
+      V.applyTheme();
+    }
+    if (V.clearHover) V.clearHover();
+    if (!quiet) renderStatus();
   }
 
   /* ================================ BIND ================================ */
@@ -589,8 +667,9 @@
     $('m-paint').onclick = function () { setMode('paint'); };
     $('m-select').onclick = function () { setMode('select'); };
     $('m-pick').onclick = function () { setMode('pick'); };
-    $('t-region').onclick = function () { setTool('region'); };
-    $('t-province').onclick = function () { setTool('province'); };
+    LEVELS.forEach(function (k) {
+      $('lv-' + k).onclick = function () { setLevel(k); };
+    });
     $('b-undo').onclick = function () { ST.undo(); };
     $('b-redo').onclick = function () { ST.redo(); };
     $('b-fit').onclick = function () { V.resetView(); };
@@ -863,7 +942,9 @@
       case 'b': setMode('paint'); break;
       case 'v': setMode('select'); break;
       case 'i': setMode('pick'); break;
-      case 'p': setTool(S.tool === 'province' ? 'region' : 'province'); break;
+      case 'p':
+        setLevel(LEVELS[(LEVELS.indexOf(S.level) + 1) % LEVELS.length]);
+        break;
       case 'k': TL.add(); toast('Captured frame ' + TL.frames().length); break;
       case ' ': e.preventDefault(); togglePlay(); break;
       case '0': V.resetView(); break;

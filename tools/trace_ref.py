@@ -49,12 +49,12 @@ SEED_AREA = 150           # px: an interior blob this big counts as a region
 MIN_ISLAND = 45           # px: standalone islands may be smaller than that
 TARGET_AREA = 2500        # px: aim for subdivisions around this size
 MAX_SPLIT = 5
-SPLIT_WOBBLE = 0.13       # how far the added split lines wander
+SPLIT_WOBBLE = 0.17       # how far the added split lines wander
 SEA_LINK = 20             # px: islands this close count as neighbours
 CHAIKIN = 2
 SIMPLIFY = 0.6
 OUTLINE_SIMPLIFY = 1.1    # stroke-only layers can be much coarser
-GROW = 0.12               # px: closes hairline seams between neighbours
+GROW = 0.30               # px: overlap that closes hairline seams between neighbours
 
 UI_RECTS = [(0, 0, 1207, 2), (0, 706, 1207, 709), (0, 238, 28, 342),
             (1048, 443, 1157, 480)]
@@ -415,7 +415,7 @@ def subdivide(lab):
         y0, y1 = ys.min(), ys.max() + 1
         x0, x1 = xs.min(), xs.max() + 1
         span = max(y1 - y0, x1 - x0)
-        fields = [noise_field((y1 - y0, x1 - x0), rng, cells=max(8, span // 4))
+        fields = [noise_field((y1 - y0, x1 - x0), rng, cells=max(6, span // 6))
                   for _ in range(k)]
         d = np.empty((k, len(xs)))
         ry, rx = ys - y0, xs - x0
@@ -469,7 +469,7 @@ def chaikin(pts, iters=CHAIKIN):
     return P
 
 
-def mask_to_polygon(mask):
+def mask_to_polygon(mask, grow=None, simplify=None):
     pad = np.zeros((mask.shape[0] + 2, mask.shape[1] + 2), float)
     pad[1:-1, 1:-1] = mask
     rings = []
@@ -503,10 +503,12 @@ def mask_to_polygon(mask):
         polys.append(Polygon(s.exterior.coords, hs))
     g = polys[0] if len(polys) == 1 else MultiPolygon(polys)
     g = make_valid(g)
-    if SIMPLIFY:
-        g = g.simplify(SIMPLIFY)
-    if GROW:
-        g = g.buffer(GROW, join_style=2)
+    simp = SIMPLIFY if simplify is None else simplify
+    if simp:
+        g = g.simplify(simp)
+    gr = GROW if grow is None else grow
+    if gr:
+        g = g.buffer(gr, join_style=2)
     if isinstance(g, MultiPolygon):
         parts = [p for p in g.geoms if p.area > 3]
         g = MultiPolygon(parts) if len(parts) > 1 else (parts[0] if parts else None)
@@ -586,9 +588,35 @@ def slug(t):
 
 
 # --------------------------------------------------------------------------- #
+def drop_ink_islands(land, bright):
+    """Labels drawn over water are dark, so they do not classify as sea and
+    would survive as letter-shaped islands.  Any land component that is small,
+    dark and compact is label or marker ink, not land -- real islets carry the
+    flat land tone and so are far brighter."""
+    lab, n = ndimage.label(land)
+    if not n:
+        return land
+    areas = ndimage.sum(land, lab, range(1, n + 1))
+    meanb = ndimage.mean(bright, lab, range(1, n + 1))
+    boxes = ndimage.find_objects(lab)
+    drop = np.zeros(n + 1, bool)
+    for i, sl in enumerate(boxes):
+        if sl is None:
+            continue
+        bh = sl[0].stop - sl[0].start
+        bw = sl[1].stop - sl[1].start
+        if meanb[i] < 165 and areas[i] < 300 and (bh * bh + bw * bw) ** 0.5 < 110:
+            drop[i + 1] = True
+    if drop.any():
+        print("ink islands  : %d dropped (%d px of label text over water)"
+              % (int(drop.sum()), int(areas[drop[1:]].sum())))
+    return land & ~drop[lab]
+
+
 def main():
     global LAND_REF
     land, bright = classify()
+    land = drop_ink_islands(land, bright)
     land, bright = extend_bottom(land, bright)
     LAND_REF = land.copy()
     h, w = land.shape
@@ -680,14 +708,55 @@ def main():
     print("sea links    : %d crossings under %.0fpx"
           % (sum(len(v) for v in sea_links.values()) // 2, SEA_LINK))
 
-    land_geom = unary_union(list(geoms.values())).buffer(0.7).buffer(-0.7)
-    land_draw = land_geom.simplify(0.5)
+    # The coastline is traced straight off the mask rather than unioned back
+    # out of the regions, so the silhouette is exactly what the image shows.
+    # Regions are then clipped to it: they keep the seam-closing overgrow on
+    # their inland edges but cannot spill past the coast.
+    land_geom = mask_to_polygon(LAND_REF, grow=0.0, simplify=0.35)
+    for rid in list(geoms):
+        clipped = geoms[rid].intersection(land_geom)
+        if isinstance(clipped, MultiPolygon):
+            parts = [q for q in clipped.geoms if q.area > 3]
+            clipped = MultiPolygon(parts) if len(parts) > 1 else (parts[0] if parts else None)
+        if clipped is not None and not clipped.is_empty and clipped.area > 3:
+            geoms[rid] = clipped
+    land_draw = land_geom
+    # the reference's own regions, as outlines for the middle border tier
+    base_groups = {}
+    for rid in geoms:
+        base_groups.setdefault(parent.get(rid, rid), []).append(rid)
+    base_regions = []
+    base_id_of = {}
+    for bid in sorted(base_groups):
+        nm = base_name.get(bid) or ("%s %d" % (base_prov.get(bid, "Region"), bid))
+        cand = "%s_%s" % (slug(base_prov.get(bid, "region")), slug(nm))
+        n, uniq = 1, cand
+        while uniq in base_id_of.values():
+            n += 1
+            uniq = "%s-%d" % (cand, n)
+        base_id_of[bid] = uniq
+    for bid, kids in sorted(base_groups.items()):
+        u = unary_union([geoms[k] for k in kids]).buffer(0.7).buffer(-0.7)
+        u = u.simplify(OUTLINE_SIMPLIFY)
+        lx, ly = pole(u, step=6.0)
+        base_regions.append(dict(
+            id=base_id_of[bid],
+            name=base_name.get(bid) or ("%s %d" % (base_prov.get(bid, "Region"), bid)),
+            province=base_prov.get(bid, "Cyrodiil"),
+            d=geom_path(u),
+            label=[round(lx, 1), round(ly, 1)],
+            area=round(u.area, 1),
+            regions=sorted(id_of[k] for k in kids if k in id_of)))
+    print("base regions : %d outlines from the reference" % len(base_regions))
+
+
     for rid in geoms:
         g = geoms[rid]
         lx, ly = pole(g)
         base_of = parent.get(rid, rid)
         e = dict(id=id_of[rid], name=final_name[rid], province=final_prov[rid],
                  base=base_name.get(base_of) or final_name[rid],
+                 baseId=base_id_of[base_of],
                  d=geom_path(g), label=[round(lx, 1), round(ly, 1)],
                  area=round(g.area, 1),
                  nb=sorted(id_of[q] for q in
@@ -699,21 +768,6 @@ def main():
             e["city"] = base_name[parent[rid]]
             e["cityAt"] = [round(lx, 1), round(ly, 1)]
         out_regions.append(e)
-
-    # the reference's own regions, as outlines for the middle border tier
-    base_groups = {}
-    for rid in geoms:
-        base_groups.setdefault(parent.get(rid, rid), []).append(rid)
-    base_regions = []
-    for bid, kids in sorted(base_groups.items()):
-        u = unary_union([geoms[k] for k in kids]).buffer(0.7).buffer(-0.7)
-        u = u.simplify(OUTLINE_SIMPLIFY)
-        base_regions.append(dict(
-            name=base_name.get(bid) or ("%s %d" % (base_prov.get(bid, "Region"), bid)),
-            province=base_prov.get(bid, "Cyrodiil"),
-            d=geom_path(u),
-            regions=sorted(id_of[k] for k in kids if k in id_of)))
-    print("base regions : %d outlines from the reference" % len(base_regions))
 
     provinces = []
     for pname in PROVINCE_ORDER:

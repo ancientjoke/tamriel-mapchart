@@ -19,8 +19,10 @@
     <button class="btn sm" id="m-select" title="Select regions (V)">Select</button>
     <button class="btn sm" id="m-pick"   title="Pick a colour from the map (I)">Pick</button>
     <div class="tb-sep"></div>
-    <button class="btn sm" id="t-region"   title="Act on one region">Region</button>
-    <button class="btn sm" id="t-province" title="Act on the whole province (or hold Shift)">Province</button>
+    <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim)">Fill</span>
+    <button class="btn sm" id="lv-province"  title="A click fills a whole province">Province</button>
+    <button class="btn sm" id="lv-region"    title="A click fills one region of the original map">Region</button>
+    <button class="btn sm" id="lv-subregion" title="A click fills a single subdivision">Subregion</button>
     <div class="tb-sep"></div>
     <button class="btn ico" id="b-undo" title="Undo (Ctrl+Z)">&#8630;</button>
     <button class="btn ico" id="b-redo" title="Redo (Ctrl+Shift+Z)">&#8631;</button>
@@ -60,9 +62,10 @@
         </div>
         <div class="palset" id="palset"></div>
         <div id="swatches"></div>
-        <p class="hint">Click a subregion to fill it. Drag to paint several.
-          <kbd>Shift</kbd>+click fills a whole province, <kbd>Alt</kbd>+click clears.
-          Drag the sea to pan, scroll to zoom.</p>
+        <p class="hint">Click to fill whatever the <b>Fill</b> switch is set to — a whole
+          province, one of the original map's 89 regions, or a single subdivision. Drag to
+          paint several. <kbd>Shift</kbd>+click always takes the whole province,
+          <kbd>Alt</kbd>+click clears. Drag the sea to pan, scroll to zoom.</p>
 
         <h4>Legend <span id="lg-count" style="color:var(--ink-dim)"></span></h4>
         <div id="legend-list"></div>
@@ -95,10 +98,10 @@
           <button class="btn sm grow" id="sel-all">All</button>
           <button class="btn sm grow" id="sel-none">None</button>
         </div>
-        <p class="hint">In <b>Select</b> mode, click regions to add or remove them.
-          Double-click any region to grab its whole province.</p>
+        <p class="hint">In <b>Select</b> mode, click to add or remove whatever the
+          <b>Fill</b> switch covers. Double-click any region to grab its whole province.</p>
 
-        <h4>Provinces &amp; regions</h4>
+        <h4>Provinces, regions &amp; subdivisions</h4>
         <div id="tree"></div>
       </section>
 
@@ -278,7 +281,7 @@
         <h4>Keyboard</h4>
         <p class="hint">
           <kbd>B</kbd> paint · <kbd>V</kbd> select · <kbd>I</kbd> pick colour ·
-          <kbd>P</kbd> province tool · <kbd>Space</kbd> play/pause ·
+          <kbd>P</kbd> cycle fill level · <kbd>Space</kbd> play/pause ·
           <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo ·
           <kbd>0</kbd> fit · <kbd>+</kbd>/<kbd>-</kbd> zoom · <kbd>K</kbd> capture frame ·
           <kbd>1</kbd>…<kbd>9</kbd> pick palette colour

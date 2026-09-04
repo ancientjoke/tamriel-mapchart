@@ -68,7 +68,7 @@
       // the reference map has no names on it, so neither does this by default
       showLabels: false, labelSize: 5.6, labelMode: 'none',
       showCities: false, showRivers: true, showLakes: true,
-      showBorders: true, showBaseBorders: true, showProvBorders: true,
+      showBorders: false, showBaseBorders: true, showProvBorders: true,
       showCoast: true,
       borderWidth: 0.45, baseBorderWidth: 0.9, provBorderWidth: 1.7,
       title: 'Tamriel', subtitle: '',
@@ -95,13 +95,17 @@
   var S = {
     doc: newDoc(),
     map: null,
-    regions: {},          // id -> region record
-    byProvince: {},       // province -> [ids]
+    regions: {},          // id -> subregion record
+    byProvince: {},       // province -> [subregion ids]
+    baseRegions: {},      // baseId -> the reference's own region record
+    byBase: {},           // baseId -> [subregion ids]
+    provBases: {},        // province -> [baseIds]
     activeColor: '#8c2f2a',
     activePalette: 'Banners',
     selection: {},        // id -> true
     mode: 'paint',        // paint | select | pick
-    tool: 'region',       // region | province
+    level: 'region',      // province | region | subregion -- what a click acts on
+    tool: 'region',       // kept for province-wide Shift+click
     playhead: 0,
     playing: false,
     activeKf: -1,

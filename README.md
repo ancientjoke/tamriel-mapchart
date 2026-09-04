@@ -1,12 +1,21 @@
 # Tamriel MapChart
 
 A MapChart-style colouring tool for Tamriel — the same idea as
-[mapchart.net/tamriel.html](https://www.mapchart.net/tamriel.html), but with the map
-**traced 1:1 from the reference** and then subdivided much further: the reference's
-own 89 regions, split into **199 subregions** across the nine provinces.
+[mapchart.net/tamriel.html](https://www.mapchart.net/tamriel.html), with the map
+**traced 1:1 from the reference image**.
 
-The map carries no names, exactly like the reference. You just colour in provinces
-and subregions.
+You colour at whichever level you want, chosen with the **Fill** switch in the
+toolbar:
+
+| Level | What one click fills |
+|---|---|
+| **Province** | one of the nine provinces |
+| **Region** | one of the reference map's own 89 regions — the default |
+| **Subregion** | one of the 199 finer subdivisions |
+
+At Province and Region level the subdivision lines are hidden, so the map looks
+exactly like the original. Switch to Subregion and they appear. The map carries no
+names, like the reference.
 
 Open `index.html` in a browser, or use the self-contained single file
 `tamriel-mapchart.html` (no server, no dependencies, works from `file://`).
@@ -43,8 +52,19 @@ coastline much darker, labels darker still. `tools/trace_ref.py`:
    distance is modulated by its own smooth noise field and the split lines wander
    the way the traced ones do. No split ever moves a border that came from the
    image — it only adds lines inside one region.
-7. **Vectorises** with marching squares, smoothed with Chaikin (symmetric, so two
+7. **Drops label ink floating on water.** Text drawn over the sea is dark, so it
+   does not classify as sea and would otherwise survive as letter-shaped islands —
+   the word "Bravil" sitting in the Niben, for instance. Any land component that is
+   small, dark and compact is ink, not land; real islets carry the flat land tone
+   and are far brighter.
+8. **Vectorises** with marching squares, smoothed with Chaikin (symmetric, so two
    regions' shared border stays coincident), and writes `data/tamriel-map.js`.
+   Regions are clipped to the traced coastline so the silhouette is exactly the
+   image's, and overlap each other by a third of a pixel inland so no hairline seam
+   shows between neighbouring fills.
+
+Measured against the source mask, the coastline scores **97.9% IoU** — the residual
+is the half-pixel convention of going raster → vector → raster, not trace error.
 
 The build reports coverage against the traced land — it should read ~100%.
 
@@ -59,22 +79,27 @@ python3 tools/bundle.py        # regenerates tamriel-mapchart.html
 ## Three border tiers
 
 Because the trace keeps the reference's regions *and* adds subdivisions, the map
-draws its borders in a hierarchy you can control separately in **Style**:
+draws its borders in a hierarchy. The **Fill** switch sets a sensible default, and
+**Style** lets you turn each tier on or off and set its width:
 
 | Tier | What it is |
 |---|---|
 | Province | the nine provinces, heaviest |
 | Map region | the 89 regions traced from the reference |
-| Subregion | the 199 subdivisions, lightest |
+| Subregion | the 199 subdivisions, lightest — hidden unless you're working at that level |
+
+Colour is always stored per subregion, so switching levels never loses anything:
+filling a region just fills all of its subdivisions at once.
 
 ## What's in it
 
-**Colouring.** Click to fill, drag to paint a run of subregions,
-<kbd>Shift</kbd>+click for a whole province, <kbd>Alt</kbd>+click to clear. Seven
+**Colouring.** Click to fill whatever the **Fill** switch covers, drag to paint
+several, <kbd>Shift</kbd>+click for a whole province, <kbd>Alt</kbd>+click to clear. Seven
 palettes plus any custom colour. The legend builds itself as you paint — rename a
 group, recolour every region in it at once, or click it to reselect those regions.
 
-**Selecting.** Search across region, province and city names, with lore aliases
+**Selecting.** Search returns map regions, not every subdivision, across region,
+province and city names, with lore aliases
 (“vvardenfell”, “holds”, “colovia”, “nibenay”, “argonia”, “alik'r”…) that expand to
 the right set. Or work down the province tree. Invert, select-all, fill-selection.
 
@@ -109,7 +134,7 @@ painting, or every timeline frame as its own PNG.
 ## Keyboard
 
 <kbd>B</kbd> paint · <kbd>V</kbd> select · <kbd>I</kbd> pick colour ·
-<kbd>P</kbd> toggle province tool · <kbd>1</kbd>–<kbd>9</kbd> palette colour ·
+<kbd>P</kbd> cycle fill level · <kbd>1</kbd>–<kbd>9</kbd> palette colour ·
 <kbd>K</kbd> capture frame · <kbd>Space</kbd> play/pause ·
 <kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> undo/redo ·
 <kbd>Ctrl</kbd>+<kbd>S</kbd> save · <kbd>0</kbd> fit · <kbd>+</kbd>/<kbd>−</kbd> zoom ·

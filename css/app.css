@@ -126,6 +126,12 @@ label.ck input{accent-color:var(--gold);width:14px;height:14px}
 .rg.sel{background:#2f2716;color:var(--gold)}
 .rg .dot{width:10px;height:10px;border-radius:2px;border:1px solid rgba(0,0,0,.6);flex:0 0 auto}
 .rg .cty{font-size:10px;color:var(--ink-dim);margin-left:auto}
+.rg.base{font-weight:500}
+.rg .tw{width:9px;font-size:8px;color:var(--ink-dim);flex:0 0 auto}
+.subs{display:none;padding-left:16px}
+.rg.base.open+.subs{display:block}
+.rg.sub{font-size:11px;color:var(--ink-dim)}
+.rg.sub:hover{color:var(--ink)}
 
 /* ---------- timeline ---------- */
 #kf-list{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}

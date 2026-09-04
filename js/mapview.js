@@ -14,6 +14,7 @@
   var cityDots = {};
   var provPaths = {};
   var painting = false, panning = false, panStart = null, lastPainted = null;
+  var hoverSet = [];
   var MIN_W = 60, MAX_W = 4000;
 
   function el(n, a) {
@@ -31,9 +32,16 @@
   function build(mapData, stageEl, tipEl) {
     S.map = mapData; stage = stageEl; tip = tipEl;
     S.regions = {}; S.byProvince = {};
+    S.baseRegions = {}; S.byBase = {}; S.provBases = {};
+    (mapData.baseRegions || []).forEach(function (b) {
+      S.baseRegions[b.id] = b;
+      S.byBase[b.id] = [];
+      (S.provBases[b.province] = S.provBases[b.province] || []).push(b.id);
+    });
     mapData.regions.forEach(function (r) {
       S.regions[r.id] = r;
       (S.byProvince[r.province] = S.byProvince[r.province] || []).push(r.id);
+      if (r.baseId && S.byBase[r.baseId]) S.byBase[r.baseId].push(r.id);
     });
 
     svg = el('svg', { id: 'map', xmlns: NS, 'shape-rendering': 'geometricPrecision' });
@@ -292,11 +300,19 @@
     var t = ev.target;
     return (t && t.__id) ? t.__id : null;
   }
+  /** What one click acts on, given the current detail level. */
   function idsFor(id, ev) {
     if (!id) return [];
-    if (S.tool === 'province' || ev.shiftKey) return S.byProvince[S.regions[id].province].slice();
+    var r = S.regions[id];
+    if (S.level === 'province' || (ev && ev.shiftKey)) {
+      return S.byProvince[r.province].slice();
+    }
+    if (S.level === 'region' && r.baseId && S.byBase[r.baseId]) {
+      return S.byBase[r.baseId].slice();
+    }
     return [id];
   }
+  TM.idsFor = idsFor;
 
   function applyPaint(id, ev, first) {
     var ids = idsFor(id, ev);
@@ -383,12 +399,18 @@
 
   function hoverRegion(id, ev) {
     if (S.hover === id) { if (id && ev) moveTip(ev); return; }
-    if (S.hover && paths[S.hover]) paths[S.hover].classList.remove('hov');
+    (hoverSet || []).forEach(function (h) {
+      if (paths[h]) paths[h].classList.remove('hov');
+    });
     S.hover = id;
-    if (!id) { tip.style.opacity = 0; TM.emit('hover'); return; }
-    paths[id].classList.add('hov');
+    if (!id) { hoverSet = []; tip.style.opacity = 0; TM.emit('hover'); return; }
+    hoverSet = idsFor(id, ev || {});
+    hoverSet.forEach(function (h) { if (paths[h]) paths[h].classList.add('hov'); });
     var r = S.regions[id], g = TM.state.groupFor(S.doc.colors[id]);
-    tip.innerHTML = '<b>' + esc(r.name) + '</b><i>' + esc(r.province) +
+    var head = (S.level === 'subregion') ? r.name : (r.base || r.name);
+    var sub = (S.level === 'subregion' && r.base && r.base !== r.name)
+      ? esc(r.base) + ' &middot; ' + esc(r.province) : esc(r.province);
+    tip.innerHTML = '<b>' + esc(head) + '</b><i>' + sub +
       (r.city ? ' &middot; ' + esc(r.city) : '') + '</i>' +
       (g ? '<i style="color:' + g.color + '">&#9632; ' + esc(g.label) + '</i>' : '');
     tip.style.opacity = 1;
@@ -408,8 +430,15 @@
     });
   }
 
+  function clearHover() {
+    (hoverSet || []).forEach(function (h) {
+      if (paths[h]) paths[h].classList.remove('hov');
+    });
+    hoverSet = []; S.hover = null; tip.style.opacity = 0;
+  }
+
   TM.view = {
-    build: build, applyTheme: applyTheme, repaint: repaint, paintFrom: paintFrom,
+    build: build, clearHover: clearHover, applyTheme: applyTheme, repaint: repaint, paintFrom: paintFrom,
     resetView: resetView, zoomBy: zoomBy, zoomToRegion: zoomToRegion,
     updateLabels: updateLabels,
     getView: function () { return { x: view.x, y: view.y, w: view.w, h: view.h }; },
